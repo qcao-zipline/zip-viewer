@@ -3,26 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>STEP Viewer MVP</title>
-    <link rel="stylesheet" href="./styles.css?v=reset-1" />
+    <title>Zipline Viewer</title>
+    <link rel="stylesheet" href="./styles.css?v=apple-3" />
     <script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.15/dist/occt-import-js.js"></script>
   </head>
   <body>
     <div class="app-shell">
       <header class="toolbar">
-        <button id="reload-model-button" type="button">Reload</button>
-        <button id="fit-view-button" type="button">Fit View</button>
-        <button id="reset-view-button" type="button">Reset Camera</button>
-        <button id="wireframe-button" type="button" aria-pressed="false">Wireframe</button>
-        <button id="edges-button" type="button" aria-pressed="false">Edges</button>
-        <span id="status-text" class="status-text">Loading model...</span>
+        <div class="brand-lockup">
+          <div class="brand-badge">Zipline Viewer</div>
+          <span id="status-text" class="status-text">Loading model...</span>
+        </div>
+
+        <div class="toolbar-actions">
+          <button id="reload-model-button" type="button">Reload</button>
+          <button id="reset-view-button" type="button">Reset Camera</button>
+          <button id="wireframe-button" type="button" aria-pressed="false">Wireframe</button>
+          <button id="edges-button" type="button" aria-pressed="false">Edges</button>
+        </div>
       </header>
 
       <main class="viewer-stage">
         <canvas id="viewer-canvas"></canvas>
+        <div id="part-tooltip" class="part-tooltip" hidden></div>
       </main>
     </div>
 
-    <script type="module" src="./src/app.js?v=reset-1"></script>
+    <script type="module" src="./src/app.js?v=apple-3"></script>
   </body>
 </html>

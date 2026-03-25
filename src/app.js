@@ -4,13 +4,13 @@ import { STLLoader } from "https://esm.sh/three@0.161.0/examples/jsm/loaders/STL
 
 const canvas = document.getElementById("viewer-canvas");
 const reloadModelButton = document.getElementById("reload-model-button");
-const fitViewButton = document.getElementById("fit-view-button");
 const resetViewButton = document.getElementById("reset-view-button");
 const wireframeButton = document.getElementById("wireframe-button");
 const edgesButton = document.getElementById("edges-button");
 const statusText = document.getElementById("status-text");
+const partTooltip = document.getElementById("part-tooltip");
 
-const bundledModelPath = "./assets/F18.stl";
+const bundledModelPath = "./assets/RocketIREC2025.step";
 const defaultCameraPosition = new THREE.Vector3(260, -260, 180);
 const stlLoader = new STLLoader();
 
@@ -21,8 +21,8 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xeef2f6);
-scene.fog = new THREE.Fog(0xeef2f6, 1800, 6000);
+scene.background = new THREE.Color(0xe1e6ee);
+scene.fog = new THREE.Fog(0xe1e6ee, 1800, 6000);
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200000);
 camera.position.copy(defaultCameraPosition);
@@ -55,10 +55,19 @@ scene.add(fillLight);
 
 const grid = new THREE.GridHelper(2000, 80, 0xcfd7df, 0xe2e8ef);
 grid.rotation.x = Math.PI / 2;
+const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
+for (const material of gridMaterials) {
+  material.transparent = true;
+  material.opacity = 0.72;
+  material.depthWrite = false;
+}
 scene.add(grid);
 
 const rootGroup = new THREE.Group();
 scene.add(rootGroup);
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
 
 const viewerState = {
   currentObject: null,
@@ -68,6 +77,8 @@ const viewerState = {
   wireframe: false,
   showEdges: false,
   occt: null,
+  hoveredMesh: null,
+  selectedMesh: null,
 };
 
 function setStatus(message) {
@@ -93,6 +104,8 @@ function disposeMaterial(material) {
 }
 
 function clearModel() {
+  clearInteractionState();
+
   if (!viewerState.currentObject) {
     viewerState.meshes = [];
     viewerState.edgeLines = [];
@@ -125,8 +138,130 @@ function createMaterial(color) {
     metalness: 0.05,
     roughness: 0.78,
     side: THREE.DoubleSide,
+    emissive: new THREE.Color(0x000000),
+    emissiveIntensity: 0,
     wireframe: viewerState.wireframe,
   });
+}
+
+function getMaterialList(mesh) {
+  if (!mesh?.material) {
+    return [];
+  }
+
+  return Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+}
+
+function resolveImportedColor(sourceColor) {
+  if (Array.isArray(sourceColor) && sourceColor.length === 3) {
+    return new THREE.Color(sourceColor[0], sourceColor[1], sourceColor[2]);
+  }
+
+  return null;
+}
+
+function getStablePartColor(name, index) {
+  let hash = 0;
+  const seed = `${name}:${index}`;
+
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+
+  const hue = hash % 360;
+  const saturation = 0.24 + ((hash >> 3) % 8) * 0.02;
+  const lightness = 0.56 + ((hash >> 6) % 6) * 0.02;
+  return new THREE.Color().setHSL(hue / 360, saturation, lightness);
+}
+
+function getPartName(mesh) {
+  return mesh?.userData?.partName || mesh?.name || "Unnamed body";
+}
+
+function applyPartState(mesh) {
+  if (!mesh) {
+    return;
+  }
+
+  const isHovered = viewerState.hoveredMesh === mesh;
+  const isSelected = viewerState.selectedMesh === mesh;
+
+  for (const material of getMaterialList(mesh)) {
+    const baseColor = material.userData?.baseColor;
+    if (baseColor) {
+      material.color.copy(baseColor);
+    }
+
+    material.emissive.setHex(0x000000);
+    material.emissiveIntensity = 0;
+
+    if (isSelected) {
+      if (baseColor) {
+        material.color.copy(baseColor).lerp(new THREE.Color(0x0a84ff), 0.26);
+      }
+      material.emissive.setHex(0x0a84ff);
+      material.emissiveIntensity = 0.22;
+      continue;
+    }
+
+    if (isHovered) {
+      if (baseColor) {
+        material.color.copy(baseColor).lerp(new THREE.Color(0xffffff), 0.16);
+      }
+      material.emissive.setHex(0xffffff);
+      material.emissiveIntensity = 0.08;
+    }
+  }
+}
+
+function refreshPartStates() {
+  for (const mesh of viewerState.meshes) {
+    applyPartState(mesh);
+  }
+}
+
+function hideTooltip() {
+  if (partTooltip) {
+    partTooltip.hidden = true;
+  }
+}
+
+function showTooltip(mesh, clientX, clientY, prefix = "") {
+  if (!partTooltip || !mesh) {
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  partTooltip.textContent = prefix ? `${prefix}: ${getPartName(mesh)}` : getPartName(mesh);
+  partTooltip.hidden = false;
+
+  const x = Math.min(clientX - rect.left + 14, rect.width - 220);
+  const y = Math.min(clientY - rect.top + 14, rect.height - 48);
+  partTooltip.style.transform = `translate(${Math.max(12, x)}px, ${Math.max(12, y)}px)`;
+}
+
+function updatePointerFromEvent(event) {
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function getIntersectedMesh(event) {
+  if (viewerState.meshes.length === 0) {
+    return null;
+  }
+
+  updatePointerFromEvent(event);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(viewerState.meshes, false);
+  return hits[0]?.object || null;
+}
+
+function clearInteractionState() {
+  viewerState.hoveredMesh = null;
+  viewerState.selectedMesh = null;
+  refreshPartStates();
+  hideTooltip();
 }
 
 function addEdgeLines(mesh) {
@@ -197,7 +332,7 @@ async function getOcct() {
   return viewerState.occt;
 }
 
-function buildStepMesh(resultMesh) {
+function buildStepMesh(resultMesh, meshIndex) {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute(
     "position",
@@ -214,11 +349,19 @@ function buildStepMesh(resultMesh) {
     geometry.computeVertexNormals();
   }
 
-  const materials = [createMaterial(new THREE.Color(0x93a0af))];
+  const partName = resultMesh.name?.trim() || `Body ${meshIndex + 1}`;
+  const partColor =
+    resolveImportedColor(resultMesh.color) || getStablePartColor(partName, meshIndex);
+  const materials = [createMaterial(partColor)];
+  for (const material of materials) {
+    material.userData.baseColor = partColor.clone();
+  }
   const mesh = new THREE.Mesh(geometry, materials[0]);
   mesh.castShadow = false;
   mesh.receiveShadow = false;
   mesh.frustumCulled = false;
+  mesh.name = partName;
+  mesh.userData.partName = partName;
   addEdgeLines(mesh);
   viewerState.meshes.push(mesh);
   return mesh;
@@ -240,8 +383,8 @@ async function loadStepFile(file) {
   const modelGroup = new THREE.Group();
   const bounds = new THREE.Box3();
 
-  for (const resultMesh of result.meshes) {
-    const mesh = buildStepMesh(resultMesh);
+  for (const [meshIndex, resultMesh] of result.meshes.entries()) {
+    const mesh = buildStepMesh(resultMesh, meshIndex);
     modelGroup.add(mesh);
     bounds.expandByObject(mesh);
   }
@@ -272,6 +415,11 @@ async function loadStlFile(file) {
   mesh.castShadow = false;
   mesh.receiveShadow = false;
   mesh.frustumCulled = false;
+  mesh.name = file.name || "STL Model";
+  mesh.userData.partName = mesh.name;
+  for (const material of getMaterialList(mesh)) {
+    material.userData.baseColor = material.color.clone();
+  }
   addEdgeLines(mesh);
   viewerState.meshes.push(mesh);
 
@@ -324,6 +472,11 @@ async function loadBundledModel() {
 }
 
 function resetCamera() {
+  if (viewerState.currentBounds) {
+    fitCameraToBounds(viewerState.currentBounds);
+    return;
+  }
+
   camera.position.copy(defaultCameraPosition);
   controls.target.set(0, 0, 0);
   controls.update();
@@ -331,10 +484,6 @@ function resetCamera() {
 
 reloadModelButton.addEventListener("click", () => {
   loadBundledModel();
-});
-
-fitViewButton.addEventListener("click", () => {
-  fitCameraToBounds(viewerState.currentBounds);
 });
 
 resetViewButton.addEventListener("click", () => {
@@ -349,6 +498,58 @@ wireframeButton.addEventListener("click", () => {
 edgesButton.addEventListener("click", () => {
   viewerState.showEdges = !viewerState.showEdges;
   applyEdgesState();
+});
+
+canvas.addEventListener("pointermove", (event) => {
+  const intersectedMesh = getIntersectedMesh(event);
+
+  if (viewerState.hoveredMesh !== intersectedMesh) {
+    viewerState.hoveredMesh = intersectedMesh;
+    refreshPartStates();
+  }
+
+  if (intersectedMesh) {
+    const prefix = viewerState.selectedMesh === intersectedMesh ? "Selected" : "Part";
+    showTooltip(intersectedMesh, event.clientX, event.clientY, prefix);
+    setStatus(`${prefix}: ${getPartName(intersectedMesh)}`);
+    return;
+  }
+
+  if (viewerState.selectedMesh) {
+    showTooltip(viewerState.selectedMesh, event.clientX, event.clientY, "Selected");
+    setStatus(`Selected: ${getPartName(viewerState.selectedMesh)}`);
+    return;
+  }
+
+  hideTooltip();
+  setStatus(viewerState.currentObject ? "Model loaded." : "Ready.");
+});
+
+canvas.addEventListener("pointerleave", () => {
+  viewerState.hoveredMesh = null;
+  refreshPartStates();
+
+  if (viewerState.selectedMesh) {
+    setStatus(`Selected: ${getPartName(viewerState.selectedMesh)}`);
+    return;
+  }
+
+  hideTooltip();
+  setStatus(viewerState.currentObject ? "Model loaded." : "Ready.");
+});
+
+canvas.addEventListener("click", (event) => {
+  viewerState.selectedMesh = getIntersectedMesh(event);
+  refreshPartStates();
+
+  if (viewerState.selectedMesh) {
+    showTooltip(viewerState.selectedMesh, event.clientX, event.clientY, "Selected");
+    setStatus(`Selected: ${getPartName(viewerState.selectedMesh)}`);
+    return;
+  }
+
+  hideTooltip();
+  setStatus(viewerState.currentObject ? "Model loaded." : "Ready.");
 });
 
 window.addEventListener("resize", updateRendererSize);

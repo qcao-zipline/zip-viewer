@@ -1,59 +1,150 @@
+:root {
+  --bg-1: #f7f9fc;
+  --bg-2: #dce4ee;
+  --panel: rgba(255, 255, 255, 0.66);
+  --panel-strong: rgba(255, 255, 255, 0.84);
+  --line: rgba(15, 23, 42, 0.08);
+  --line-strong: rgba(15, 23, 42, 0.14);
+  --text: #111827;
+  --muted: rgba(17, 24, 39, 0.54);
+  --accent: #0a84ff;
+  --accent-strong: #0066cc;
+  --shadow: 0 24px 60px rgba(15, 23, 42, 0.1);
+  --inner-glow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
 html,
 body {
   width: 100%;
   height: 100%;
   margin: 0;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #eef2f6;
-  color: #1f2937;
+  font-family:
+    "SF Pro Display",
+    "SF Pro Text",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Helvetica Neue",
+    "Segoe UI",
+    sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.96), transparent 24%),
+    linear-gradient(160deg, var(--bg-1) 0%, #eef2f7 42%, var(--bg-2) 100%);
 }
 
 * {
   box-sizing: border-box;
 }
 
+button {
+  font: inherit;
+}
+
 .app-shell {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   width: 100%;
   height: 100%;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.82), transparent 34%),
+    linear-gradient(180deg, #f3f5f9 0%, #e1e6ee 100%);
 }
 
 .toolbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  z-index: 3;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-bottom: 1px solid #d5dce5;
-  background: rgba(255, 255, 255, 0.92);
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.52));
+  backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: var(--shadow);
 }
 
-.toolbar button {
-  border: 1px solid #c7d0db;
-  background: #ffffff;
-  color: #1f2937;
-  border-radius: 8px;
-  padding: 8px 12px;
-  font: inherit;
-  cursor: pointer;
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
-.toolbar button[aria-pressed="true"] {
-  background: #1f2937;
-  border-color: #1f2937;
-  color: #ffffff;
+.brand-badge {
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(15, 23, 42, 0.05);
+  box-shadow: var(--inner-glow);
+  font-size: 0.98rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .status-text {
-  margin-left: auto;
-  font-size: 14px;
-  color: #526173;
+  font-size: 0.88rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.toolbar button {
+  position: relative;
+  padding: 10px 15px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(245, 247, 250, 0.76));
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 590;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  box-shadow:
+    var(--inner-glow),
+    0 8px 18px rgba(15, 23, 42, 0.06);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.toolbar button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow:
+    var(--inner-glow),
+    0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.toolbar button[aria-pressed="true"] {
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  color: #f8fbff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 10px 24px rgba(10, 132, 255, 0.24);
 }
 
 .viewer-stage {
   position: relative;
-  flex: 1;
+  width: 100%;
+  height: 100%;
   min-height: 0;
 }
 
@@ -61,4 +152,55 @@ body {
   display: block;
   width: 100%;
   height: 100%;
+  cursor: grab;
+}
+
+#viewer-canvas:active {
+  cursor: grabbing;
+}
+
+.part-tooltip {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  left: 0;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(247, 249, 252, 0.76));
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 590;
+  letter-spacing: -0.01em;
+  pointer-events: none;
+  backdrop-filter: blur(18px) saturate(1.15);
+  box-shadow:
+    var(--inner-glow),
+    0 16px 36px rgba(15, 23, 42, 0.14);
+}
+
+.part-tooltip[hidden] {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .brand-lockup {
+    flex-wrap: wrap;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .status-text {
+    white-space: normal;
+  }
 }
