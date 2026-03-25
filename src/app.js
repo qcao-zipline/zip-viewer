@@ -10,7 +10,7 @@ const edgesButton = document.getElementById("edges-button");
 const statusText = document.getElementById("status-text");
 const partTooltip = document.getElementById("part-tooltip");
 
-const bundledModelPath = "./assets/RocketIREC2025.step";
+const bundledModelPath = "./assets/DRONE.stp";
 const defaultCameraPosition = new THREE.Vector3(260, -260, 180);
 const stlLoader = new STLLoader();
 
@@ -22,7 +22,6 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xe1e6ee);
-scene.fog = new THREE.Fog(0xe1e6ee, 1800, 6000);
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200000);
 camera.position.copy(defaultCameraPosition);
@@ -68,6 +67,11 @@ scene.add(rootGroup);
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
+const rightClickState = {
+  active: false,
+  startX: 0,
+  startY: 0,
+};
 
 const viewerState = {
   currentObject: null,
@@ -176,6 +180,55 @@ function getStablePartColor(name, index) {
 
 function getPartName(mesh) {
   return mesh?.userData?.partName || mesh?.name || "Unnamed body";
+}
+
+function setPartVisibility(mesh, isVisible) {
+  if (!mesh) {
+    return;
+  }
+
+  mesh.visible = isVisible;
+  mesh.userData.isHidden = !isVisible;
+}
+
+function hidePart(mesh) {
+  if (!mesh || !mesh.visible) {
+    setStatus("Select a part to hide.");
+    return;
+  }
+
+  const partName = getPartName(mesh);
+  setPartVisibility(mesh, false);
+
+  if (viewerState.hoveredMesh === mesh) {
+    viewerState.hoveredMesh = null;
+  }
+
+  if (viewerState.selectedMesh === mesh) {
+    viewerState.selectedMesh = null;
+  }
+
+  refreshPartStates();
+  hideTooltip();
+  setStatus(`Hidden ${partName}`);
+}
+
+function showAllParts() {
+  let restoredCount = 0;
+
+  for (const mesh of viewerState.meshes) {
+    if (mesh.userData.isHidden) {
+      setPartVisibility(mesh, true);
+      restoredCount += 1;
+    }
+  }
+
+  refreshPartStates();
+  setStatus(
+    restoredCount > 0
+      ? `Restored ${restoredCount} part${restoredCount === 1 ? "" : "s"}`
+      : "No hidden parts",
+  );
 }
 
 function applyPartState(mesh) {
@@ -295,8 +348,22 @@ function fitCameraToBounds(bounds) {
   controls.target.copy(center);
   camera.position.copy(center).add(direction.multiplyScalar(distance));
   camera.near = Math.max(distance / 2000, 0.1);
-  camera.far = Math.max(distance * 20, 5000);
+  camera.far = Math.max(distance * 40, 20000);
   camera.updateProjectionMatrix();
+  controls.update();
+}
+
+function rollCamera(angleRadians) {
+  const viewDirection = new THREE.Vector3()
+    .subVectors(controls.target, camera.position)
+    .normalize();
+
+  if (viewDirection.lengthSq() === 0) {
+    return;
+  }
+
+  const rotation = new THREE.Quaternion().setFromAxisAngle(viewDirection, angleRadians);
+  camera.up.applyQuaternion(rotation).normalize();
   controls.update();
 }
 
@@ -362,6 +429,7 @@ function buildStepMesh(resultMesh, meshIndex) {
   mesh.frustumCulled = false;
   mesh.name = partName;
   mesh.userData.partName = partName;
+  mesh.userData.isHidden = false;
   addEdgeLines(mesh);
   viewerState.meshes.push(mesh);
   return mesh;
@@ -417,6 +485,7 @@ async function loadStlFile(file) {
   mesh.frustumCulled = false;
   mesh.name = file.name || "STL Model";
   mesh.userData.partName = mesh.name;
+  mesh.userData.isHidden = false;
   for (const material of getMaterialList(mesh)) {
     material.userData.baseColor = material.color.clone();
   }
@@ -509,9 +578,9 @@ canvas.addEventListener("pointermove", (event) => {
   }
 
   if (intersectedMesh) {
-    const prefix = viewerState.selectedMesh === intersectedMesh ? "Selected" : "Part";
+    const prefix = viewerState.selectedMesh === intersectedMesh ? "Selected" : "";
     showTooltip(intersectedMesh, event.clientX, event.clientY, prefix);
-    setStatus(`${prefix}: ${getPartName(intersectedMesh)}`);
+    setStatus(getPartName(intersectedMesh));
     return;
   }
 
@@ -552,6 +621,40 @@ canvas.addEventListener("click", (event) => {
   setStatus(viewerState.currentObject ? "Model loaded." : "Ready.");
 });
 
+canvas.addEventListener("pointerdown", (event) => {
+  if (event.button !== 2) {
+    return;
+  }
+
+  rightClickState.active = true;
+  rightClickState.startX = event.clientX;
+  rightClickState.startY = event.clientY;
+});
+
+canvas.addEventListener("pointerup", (event) => {
+  if (event.button !== 2 || !rightClickState.active) {
+    return;
+  }
+
+  const movement = Math.hypot(
+    event.clientX - rightClickState.startX,
+    event.clientY - rightClickState.startY,
+  );
+  rightClickState.active = false;
+
+  if (movement > 6) {
+    return;
+  }
+
+  const intersectedMesh = getIntersectedMesh(event);
+  if (intersectedMesh) {
+    hidePart(intersectedMesh);
+    return;
+  }
+
+  showAllParts();
+});
+
 window.addEventListener("resize", updateRendererSize);
 window.addEventListener("keydown", (event) => {
   if (event.key === "Shift") {
@@ -569,6 +672,18 @@ window.addEventListener("keyup", (event) => {
       MIDDLE: THREE.MOUSE.ROTATE,
       RIGHT: THREE.MOUSE.PAN,
     };
+  }
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "q" || event.key === "Q") {
+    rollCamera(Math.PI / 18);
+    setStatus("View rolled left");
+  }
+
+  if (event.key === "e" || event.key === "E") {
+    rollCamera(-Math.PI / 18);
+    setStatus("View rolled right");
   }
 });
 
