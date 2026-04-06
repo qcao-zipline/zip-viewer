@@ -3,14 +3,18 @@ import { OrbitControls } from "https://esm.sh/three@0.161.0/examples/jsm/control
 import { STLLoader } from "https://esm.sh/three@0.161.0/examples/jsm/loaders/STLLoader.js";
 
 const canvas = document.getElementById("viewer-canvas");
+const modelPicker = document.getElementById("model-picker");
+const modelCardButtons = Array.from(document.querySelectorAll(".model-card"));
+const backToPickerButton = document.getElementById("back-to-picker-button");
 const reloadModelButton = document.getElementById("reload-model-button");
 const resetViewButton = document.getElementById("reset-view-button");
 const wireframeButton = document.getElementById("wireframe-button");
 const edgesButton = document.getElementById("edges-button");
 const statusText = document.getElementById("status-text");
+const loadingScreen = document.getElementById("loading-screen");
+const loadingLabel = document.getElementById("loading-label");
 const partTooltip = document.getElementById("part-tooltip");
 
-const bundledModelPath = "./assets/DRONE.stp";
 const defaultCameraPosition = new THREE.Vector3(260, -260, 180);
 const stlLoader = new STLLoader();
 
@@ -83,12 +87,59 @@ const viewerState = {
   occt: null,
   hoveredMesh: null,
   selectedMesh: null,
+  currentModelPath: null,
+  currentModelName: null,
 };
 
 function setStatus(message) {
   if (statusText) {
     statusText.textContent = message;
   }
+}
+
+function showModelPicker() {
+  modelPicker.hidden = false;
+  backToPickerButton.hidden = true;
+  setLoadingState(false);
+  clearModel();
+  setStatus("Choose a model");
+}
+
+function hideModelPicker() {
+  modelPicker.hidden = true;
+  backToPickerButton.hidden = false;
+}
+
+function setLoadingState(isVisible, message = "Loading model...") {
+  if (!loadingScreen || !loadingLabel) {
+    return;
+  }
+
+  loadingLabel.textContent = message;
+
+  if (isVisible) {
+    loadingScreen.classList.remove("is-visible");
+    void loadingScreen.offsetWidth;
+    loadingScreen.classList.add("is-visible");
+    return;
+  }
+
+  loadingScreen.classList.remove("is-visible");
+}
+
+async function completeLoadingState() {
+  await new Promise((resolve) => {
+    requestAnimationFrame(resolve);
+  });
+  setLoadingState(false);
+}
+
+function waitForNextPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resolve);
+    });
+  });
 }
 
 function updateRendererSize() {
@@ -162,6 +213,44 @@ function resolveImportedColor(sourceColor) {
   }
 
   return null;
+}
+
+function getStepSchema(headerText) {
+  const schemaMatch = headerText.match(/FILE_SCHEMA\s*\(\('\s*([^']+)/i);
+  return schemaMatch ? schemaMatch[1].trim() : null;
+}
+
+function analyzeStepText(stepText) {
+  const normalizedText = stepText.toUpperCase();
+
+  return {
+    schema: getStepSchema(normalizedText),
+    isAliasHybridModel:
+      normalizedText.includes("SHAPE_REPRESENTATION('HYBRID MODEL'") &&
+      normalizedText.includes("MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION"),
+  };
+}
+
+function describeStepReadError(error, file, analysis) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  const fileSizeMb = (file.size / (1024 * 1024)).toFixed(2);
+
+  if (analysis?.isAliasHybridModel) {
+    return [
+      `The STEP parser rejected "${file.name}".`,
+      `File size: ${fileSizeMb} MB.`,
+      "This file is an Autodesk Alias-style hybrid/presentation STEP export, not a standard solid B-rep STEP this browser importer can triangulate reliably.",
+    ].join(" ");
+  }
+
+  return [
+    `The STEP parser rejected "${file.name}".`,
+    `File size: ${fileSizeMb} MB.`,
+    "This usually means the file uses unsupported STEP entities or is not a triangulatable solid/surface STEP export.",
+  ].join(" ");
 }
 
 function getStablePartColor(name, index) {
@@ -438,14 +527,37 @@ function buildStepMesh(resultMesh, meshIndex) {
 async function loadStepFile(file) {
   setStatus("Loading STEP model...");
   clearModel();
+  await waitForNextPaint();
 
   const occt = await getOcct();
   const arrayBuffer = await file.arrayBuffer();
   const buffer = new Uint8Array(arrayBuffer);
-  const result = occt.ReadStepFile(buffer, null);
+  const stepText = new TextDecoder("utf-8", { fatal: false })
+    .decode(buffer)
+    .replace(/\0/g, " ");
+  const analysis = analyzeStepText(stepText);
+  const header = stepText.slice(0, 1024).toUpperCase();
+
+  if (!header.includes("ISO-10303-21")) {
+    throw new Error(
+      "This file does not look like a standard STEP exchange file. Try a text-based .step/.stp export.",
+    );
+  }
+
+  if (analysis.isAliasHybridModel) {
+    throw new Error(describeStepReadError(new Error(""), file, analysis));
+  }
+
+  let result;
+  try {
+    result = occt.ReadStepFile(buffer, null);
+  } catch (error) {
+    throw new Error(describeStepReadError(error, file, analysis));
+  }
 
   if (!result.meshes || result.meshes.length === 0) {
-    throw new Error("The STEP file did not produce any renderable meshes.");
+    const schemaDetails = analysis.schema ? ` Schema: ${analysis.schema}.` : "";
+    throw new Error(`The STEP file was read but produced no renderable meshes.${schemaDetails}`);
   }
 
   const modelGroup = new THREE.Group();
@@ -463,6 +575,7 @@ async function loadStepFile(file) {
 async function loadStlFile(file) {
   setStatus("Loading STL model...");
   clearModel();
+  await waitForNextPaint();
 
   const arrayBuffer = await file.arrayBuffer();
   const geometry = stlLoader.parse(arrayBuffer);
@@ -520,22 +633,35 @@ async function loadModelFile(file) {
 }
 
 async function loadBundledModel() {
+  if (!viewerState.currentModelPath) {
+    showModelPicker();
+    return;
+  }
+
   setStatus("Fetching model...");
+  setLoadingState(true, "Loading model...");
+  await waitForNextPaint();
 
   try {
-    const response = await fetch(bundledModelPath);
+    const response = await fetch(viewerState.currentModelPath);
     if (!response.ok) {
-      throw new Error(`Failed to fetch ${bundledModelPath} (${response.status}).`);
+      throw new Error(`Failed to fetch ${viewerState.currentModelPath} (${response.status}).`);
     }
 
-    const fileName = bundledModelPath.split("/").pop() || "model";
-    const file = new File([await response.arrayBuffer()], fileName, {
+    const modelBuffer = await response.arrayBuffer();
+    loadingLabel.textContent = "Parsing model...";
+    await waitForNextPaint();
+
+    const fileName = viewerState.currentModelPath.split("/").pop() || "model";
+    const file = new File([modelBuffer], fileName, {
       type: "application/octet-stream",
     });
     await loadModelFile(file);
+    await completeLoadingState();
   } catch (error) {
     console.error(error);
     clearModel();
+    setLoadingState(false);
     setStatus(error.message || "Failed to load model.");
   }
 }
@@ -550,6 +676,26 @@ function resetCamera() {
   controls.target.set(0, 0, 0);
   controls.update();
 }
+
+function openSelectedModel(modelPath, modelName) {
+  viewerState.currentModelPath = modelPath;
+  viewerState.currentModelName = modelName;
+  hideModelPicker();
+  setStatus(`Opening ${modelName}...`);
+  loadBundledModel();
+}
+
+for (const cardButton of modelCardButtons) {
+  cardButton.addEventListener("click", () => {
+    openSelectedModel(cardButton.dataset.modelPath, cardButton.dataset.modelName);
+  });
+}
+
+backToPickerButton.addEventListener("click", () => {
+  viewerState.currentModelPath = null;
+  viewerState.currentModelName = null;
+  showModelPicker();
+});
 
 reloadModelButton.addEventListener("click", () => {
   loadBundledModel();
@@ -702,4 +848,4 @@ applyWireframeState();
 applyEdgesState();
 resetCamera();
 animate();
-loadBundledModel();
+showModelPicker();

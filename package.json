@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "dev": "python3 -m http.server 3000",
+    "start": "python3 -m http.server 3000"
+  },
   "dependencies": {
     "opencascade-tools": "^0.0.9"
   }

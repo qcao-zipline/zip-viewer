@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Zipline Viewer</title>
-    <link rel="stylesheet" href="./styles.css?v=apple-4" />
+    <link rel="stylesheet" href="./styles.css?v=apple-7" />
     <script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.15/dist/occt-import-js.js"></script>
   </head>
   <body>
@@ -16,6 +16,7 @@
         </div>
 
         <div class="toolbar-actions">
+          <button id="back-to-picker-button" type="button" hidden>Back</button>
           <button id="reload-model-button" type="button">Reload</button>
           <button id="reset-view-button" type="button">Reset Camera</button>
           <button id="wireframe-button" type="button" aria-pressed="false">Wireframe</button>
@@ -25,10 +26,45 @@
 
       <main class="viewer-stage">
         <canvas id="viewer-canvas"></canvas>
+        <section id="model-picker" class="model-picker" aria-label="Model picker">
+          <div class="model-picker-shell">
+            <div class="model-picker-header">
+              <div class="model-picker-title">Zipline Viewer</div>
+            </div>
+
+            <div class="model-picker-grid">
+              <button
+                class="model-card"
+                type="button"
+                data-model-path="./assets/DRONE.stp"
+                data-model-name="Zip"
+              >
+                <img src="./assets/Zip.png" alt="Zip model" />
+                <span class="model-card-label">Zip</span>
+              </button>
+              <button
+                class="model-card"
+                type="button"
+                data-model-path="./assets/RocketIREC2025.step"
+                data-model-name="Droid"
+              >
+                <img src="./assets/Droid.png" alt="Droid model" />
+                <span class="model-card-label">Droid</span>
+              </button>
+            </div>
+          </div>
+        </section>
+        <div id="loading-screen" class="loading-screen" aria-live="polite">
+          <div class="loading-mark">
+            <div class="loading-wordmark">Zipline</div>
+            <div id="loading-label" class="loading-label">Loading model...</div>
+            <div class="loading-spinner" aria-hidden="true"></div>
+          </div>
+        </div>
         <div id="part-tooltip" class="part-tooltip" hidden></div>
       </main>
     </div>
 
-    <script type="module" src="./src/app.js?v=apple-4"></script>
+    <script type="module" src="./src/app.js?v=apple-7"></script>
   </body>
 </html>
