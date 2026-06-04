@@ -13,8 +13,8 @@ export function createCameraController(runtime, { getCurrentBounds }) {
     const maxSize = Math.max(size.x, size.y, size.z, 1);
     const fitHeightDistance = maxSize / (2 * Math.tan((Math.PI * camera.fov) / 360));
     const fitWidthDistance = fitHeightDistance / camera.aspect;
-    const distance = 1.4 * Math.max(fitHeightDistance, fitWidthDistance);
-    const direction = new THREE.Vector3(1, -1, 0.75).normalize();
+    const distance = 1.18 * Math.max(fitHeightDistance, fitWidthDistance);
+    const direction = new THREE.Vector3(0.45, -1, 0.7).normalize();
 
     controls.target.copy(center);
     camera.position.copy(center).add(direction.multiplyScalar(distance));

@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ZipView</title>
-    <link rel="stylesheet" href="./styles.css?v=apple-10" />
+    <link rel="icon" type="image/png" href="./assets/Zip_Icon.png" />
+    <link rel="stylesheet" href="./styles.css?v=apple-11" />
     <script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.15/dist/occt-import-js.js"></script>
   </head>
   <body>
@@ -24,7 +25,10 @@
             <span aria-hidden="true"></span>
             <span aria-hidden="true"></span>
           </button>
-          <button id="home-button" class="brand-badge" type="button">ZipView</button>
+          <button id="home-button" class="brand-badge" type="button">
+            <img src="./assets/Zip_Icon.png" alt="" class="brand-icon" />
+            <span>ZipView</span>
+          </button>
           <span id="status-text" class="status-text">Loading model...</span>
         </div>
 
@@ -54,6 +58,11 @@
           </div>
         </aside>
         <canvas id="viewer-canvas"></canvas>
+        <div id="part-context-menu" class="part-context-menu" hidden>
+          <div id="part-context-title" class="part-context-title"></div>
+          <button id="context-isolate-button" class="part-context-action" type="button">Isolate Part</button>
+          <button id="context-hide-button" class="part-context-action" type="button">Hide Part</button>
+        </div>
         <section id="model-picker" class="model-picker" aria-label="Model picker">
           <div class="model-picker-shell">
             <div class="model-picker-header">
@@ -64,22 +73,22 @@
               <button
                 class="model-card"
                 type="button"
+                aria-label="Open Zip model"
                 data-model-path="./assets/models/demo.step"
                 data-fallback-model-path="./assets/models/demo.step"
                 data-model-name="Zip"
               >
-                <img src="./assets/Zip.png" alt="Zip model" />
-                <span class="model-card-label">Zip</span>
+                <img src="./assets/Zip_Render.png" alt="Zip model" />
               </button>
               <button
                 class="model-card"
                 type="button"
+                aria-label="Open Droid model"
                 data-model-path="./assets/models/Droid_Export_Attempt_8.obj"
                 data-fallback-model-path="./assets/models/Droid_Export_Attempt_8.obj"
                 data-model-name="Droid"
               >
-                <img src="./assets/Droid.png" alt="Droid model" />
-                <span class="model-card-label">Droid</span>
+                <img src="./assets/Droid_Render.png" alt="Droid model" />
               </button>
             </div>
           </div>

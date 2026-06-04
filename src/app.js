@@ -24,6 +24,10 @@ const statusText = document.getElementById("status-text");
 const loadingScreen = document.getElementById("loading-screen");
 const loadingLabel = document.getElementById("loading-label");
 const partTooltip = document.getElementById("part-tooltip");
+const partContextMenu = document.getElementById("part-context-menu");
+const partContextTitle = document.getElementById("part-context-title");
+const contextIsolateButton = document.getElementById("context-isolate-button");
+const contextHideButton = document.getElementById("context-hide-button");
 const bomPanel = document.getElementById("bom-panel");
 const bomSearch = document.getElementById("bom-search");
 const bomList = document.getElementById("bom-list");
@@ -84,6 +88,10 @@ uiCallbacks.refreshPartStates = partsController.refreshPartStates;
 const interactionsController = createInteractionsController({
   canvas,
   partTooltip,
+  partContextMenu,
+  partContextTitle,
+  contextIsolateButton,
+  contextHideButton,
   sceneRuntime,
   partsController,
   cameraController,

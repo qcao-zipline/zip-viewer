@@ -3,6 +3,10 @@ import { viewerState } from "./state.js";
 export function createInteractionsController({
   canvas,
   partTooltip,
+  partContextMenu,
+  partContextTitle,
+  contextIsolateButton,
+  contextHideButton,
   sceneRuntime,
   partsController,
   cameraController,
@@ -14,11 +18,34 @@ export function createInteractionsController({
     startX: 0,
     startY: 0,
   };
+  let contextMenuMesh = null;
 
   function hideTooltip() {
     if (partTooltip) {
       partTooltip.hidden = true;
     }
+  }
+
+  function hideContextMenu() {
+    if (partContextMenu) {
+      partContextMenu.hidden = true;
+    }
+    contextMenuMesh = null;
+  }
+
+  function showContextMenu(mesh, clientX, clientY) {
+    if (!partContextMenu || !partContextTitle || !mesh) {
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.min(clientX - rect.left + 12, rect.width - 236);
+    const y = Math.min(clientY - rect.top + 12, rect.height - 160);
+
+    contextMenuMesh = mesh;
+    partContextTitle.textContent = partsController.getPartName(mesh);
+    partContextMenu.hidden = false;
+    partContextMenu.style.transform = `translate(${Math.max(12, x)}px, ${Math.max(12, y)}px)`;
   }
 
   function showTooltip(mesh, clientX, clientY, prefix = "") {
@@ -100,6 +127,8 @@ export function createInteractionsController({
         return;
       }
 
+      hideContextMenu();
+
       const intersectedMesh = getIntersectedMesh(event);
       partsController.selectMesh(intersectedMesh);
 
@@ -136,13 +165,14 @@ export function createInteractionsController({
         return;
       }
 
+      hideContextMenu();
       const intersectedMesh = getIntersectedMesh(event);
       if (intersectedMesh) {
-        partsController.hidePart(intersectedMesh);
+        partsController.selectMesh(intersectedMesh);
+        showTooltip(intersectedMesh, event.clientX, event.clientY, "Selected");
+        showContextMenu(intersectedMesh, event.clientX, event.clientY);
         return;
       }
-
-      partsController.showAllParts();
     });
 
     canvas.addEventListener("contextmenu", (event) => {
@@ -151,9 +181,30 @@ export function createInteractionsController({
 
     canvas.addEventListener("pointercancel", () => {
       setManipulatingCursor(false);
+      hideContextMenu();
+    });
+
+    contextIsolateButton?.addEventListener("click", () => {
+      if (!contextMenuMesh) {
+        return;
+      }
+
+      partsController.selectMesh(contextMenuMesh, { isolate: true });
+      cameraController.focusMesh(contextMenuMesh);
+      hideContextMenu();
+    });
+
+    contextHideButton?.addEventListener("click", () => {
+      if (!contextMenuMesh) {
+        return;
+      }
+
+      partsController.hidePart(contextMenuMesh);
+      hideContextMenu();
     });
 
     controls.addEventListener("start", () => {
+      hideContextMenu();
       setManipulatingCursor(true);
     });
 
@@ -162,6 +213,10 @@ export function createInteractionsController({
     });
 
     window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        hideContextMenu();
+      }
+
       if (event.key === "Shift") {
         controls.mouseButtons = {
           LEFT: THREE.MOUSE.PAN,
@@ -192,10 +247,15 @@ export function createInteractionsController({
         uiController.setStatus("View rolled right");
       }
     });
+
+    window.addEventListener("resize", () => {
+      hideContextMenu();
+    });
   }
 
   return {
     hideTooltip,
+    hideContextMenu,
     showTooltip,
     getIntersectedMesh,
     bindEvents,
