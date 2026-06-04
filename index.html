@@ -4,27 +4,57 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Zipline Viewer</title>
-    <link rel="stylesheet" href="./styles.css?v=apple-7" />
+    <link rel="stylesheet" href="./styles.css?v=apple-9" />
     <script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.15/dist/occt-import-js.js"></script>
   </head>
   <body>
     <div class="app-shell">
       <header class="toolbar">
         <div class="brand-lockup">
-          <div class="brand-badge">Zipline Viewer</div>
+          <button
+            id="bom-menu-button"
+            class="toolbar-menu-button"
+            type="button"
+            aria-pressed="false"
+            aria-controls="bom-panel"
+            aria-label="Open BOM sidebar"
+            hidden
+          >
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+          </button>
+          <button id="home-button" class="brand-badge" type="button">Zipline Viewer</button>
           <span id="status-text" class="status-text">Loading model...</span>
         </div>
 
         <div class="toolbar-actions">
-          <button id="back-to-picker-button" type="button" hidden>Back</button>
+          <button id="theme-button" type="button" aria-pressed="false" aria-label="Toggle dark mode">Dark</button>
           <button id="reload-model-button" type="button">Reload</button>
-          <button id="reset-view-button" type="button">Reset Camera</button>
-          <button id="wireframe-button" type="button" aria-pressed="false">Wireframe</button>
-          <button id="edges-button" type="button" aria-pressed="false">Edges</button>
+          <button id="reset-view-button" type="button">Reset View</button>
+          <button id="transparency-button" type="button" aria-pressed="false">Transparent</button>
         </div>
       </header>
 
       <main class="viewer-stage">
+        <aside id="bom-panel" class="bom-panel" aria-label="Bill of materials" hidden>
+          <div class="bom-panel-shell">
+            <div class="bom-panel-header">
+              <div>
+                <div class="bom-eyebrow">Assembly</div>
+                <div class="bom-title">BOM</div>
+              </div>
+            </div>
+
+            <label class="bom-search-shell" for="bom-search">
+              <span class="bom-search-label">Search</span>
+              <input id="bom-search" type="search" placeholder="Find a part..." autocomplete="off" />
+            </label>
+
+            <div id="bom-empty" class="bom-empty" hidden>No matching parts.</div>
+            <div id="bom-list" class="bom-list" role="listbox" aria-label="Model parts"></div>
+          </div>
+        </aside>
         <canvas id="viewer-canvas"></canvas>
         <section id="model-picker" class="model-picker" aria-label="Model picker">
           <div class="model-picker-shell">
@@ -36,7 +66,8 @@
               <button
                 class="model-card"
                 type="button"
-                data-model-path="./assets/DRONE.stp"
+                data-model-path="./assets/models/demo.step"
+                data-fallback-model-path="./assets/models/demo.step"
                 data-model-name="Zip"
               >
                 <img src="./assets/Zip.png" alt="Zip model" />
@@ -45,7 +76,8 @@
               <button
                 class="model-card"
                 type="button"
-                data-model-path="./assets/RocketIREC2025.step"
+                data-model-path="./assets/models/Droid_Export_Attempt_7.obj"
+                data-fallback-model-path="./assets/models/Droid_Export_Attempt_7.obj"
                 data-model-name="Droid"
               >
                 <img src="./assets/Droid.png" alt="Droid model" />
@@ -65,6 +97,6 @@
       </main>
     </div>
 
-    <script type="module" src="./src/app.js?v=apple-7"></script>
+    <script type="module" src="./src/app.js?v=apple-9"></script>
   </body>
 </html>
