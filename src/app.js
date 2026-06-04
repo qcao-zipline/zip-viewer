@@ -9,7 +9,7 @@ import { applySceneTheme, createSceneRuntime } from "./scene.js";
 import { viewerState } from "./state.js";
 import { createUiController } from "./ui.js";
 
-const LOAD_LOG_PREFIX = "[Zipline Viewer]";
+const LOAD_LOG_PREFIX = "[ZipView]";
 
 const canvas = document.getElementById("viewer-canvas");
 const modelPicker = document.getElementById("model-picker");
@@ -145,11 +145,11 @@ function clearModel() {
 uiCallbacks.clearModel = clearModel;
 
 function finalizeLoadedObject(object, bounds) {
-  const groundedBounds = cameraController.groundObjectToGrid(object, bounds);
+  const placedBounds = cameraController.placeObjectOnGrid(object, bounds);
   viewerState.currentObject = object;
-  viewerState.currentBounds = groundedBounds;
+  viewerState.currentBounds = placedBounds;
   sceneRuntime.rootGroup.add(object);
-  cameraController.fitCameraToBounds(groundedBounds);
+  cameraController.fitCameraToBounds(placedBounds);
   uiController.setStatus("");
   viewerState.bomOpen = false;
   bomController.applyBomPanelState();

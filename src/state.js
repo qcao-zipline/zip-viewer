@@ -1,4 +1,4 @@
-const LOAD_LOG_PREFIX = "[Zipline Viewer]";
+const LOAD_LOG_PREFIX = "[ZipView]";
 const THEME_STORAGE_KEY = "zip-viewer-theme";
 
 export const viewerState = {

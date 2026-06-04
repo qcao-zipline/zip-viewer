@@ -43,6 +43,10 @@ export function createInteractionsController({
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   }
 
+  function setManipulatingCursor(isManipulating) {
+    canvas.classList.toggle("is-manipulating", isManipulating);
+  }
+
   function getIntersectedMesh(event) {
     if (viewerState.meshes.length === 0) {
       return null;
@@ -63,15 +67,12 @@ export function createInteractionsController({
         partsController.refreshPartStates();
       }
 
-      if (intersectedMesh) {
-        const prefix = viewerState.selectedMesh === intersectedMesh ? "Selected" : "";
-        showTooltip(intersectedMesh, event.clientX, event.clientY, prefix);
-        uiController.setStatus(partsController.getPartName(intersectedMesh));
-        return;
-      }
-
       if (viewerState.selectedMesh) {
-        showTooltip(viewerState.selectedMesh, event.clientX, event.clientY, "Selected");
+        if (viewerState.selectedMesh === intersectedMesh) {
+          showTooltip(viewerState.selectedMesh, event.clientX, event.clientY, "Selected");
+        } else {
+          hideTooltip();
+        }
         uiController.setStatus(`Selected: ${partsController.getPartName(viewerState.selectedMesh)}`);
         return;
       }
@@ -83,14 +84,31 @@ export function createInteractionsController({
     canvas.addEventListener("pointerleave", () => {
       viewerState.hoveredMesh = null;
       partsController.refreshPartStates();
+      hideTooltip();
+      setManipulatingCursor(false);
 
       if (viewerState.selectedMesh) {
         uiController.setStatus(`Selected: ${partsController.getPartName(viewerState.selectedMesh)}`);
         return;
       }
 
-      hideTooltip();
       uiController.setStatus(uiController.getIdleStatus());
+    });
+
+    canvas.addEventListener("click", (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      const intersectedMesh = getIntersectedMesh(event);
+      partsController.selectMesh(intersectedMesh);
+
+      if (intersectedMesh) {
+        showTooltip(intersectedMesh, event.clientX, event.clientY, "Selected");
+        return;
+      }
+
+      hideTooltip();
     });
 
     canvas.addEventListener("pointerdown", (event) => {
@@ -129,6 +147,18 @@ export function createInteractionsController({
 
     canvas.addEventListener("contextmenu", (event) => {
       event.preventDefault();
+    });
+
+    canvas.addEventListener("pointercancel", () => {
+      setManipulatingCursor(false);
+    });
+
+    controls.addEventListener("start", () => {
+      setManipulatingCursor(true);
+    });
+
+    controls.addEventListener("end", () => {
+      setManipulatingCursor(false);
     });
 
     window.addEventListener("keydown", (event) => {

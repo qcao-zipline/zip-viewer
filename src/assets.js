@@ -1,4 +1,4 @@
-const LOAD_LOG_PREFIX = "[Zipline Viewer]";
+const LOAD_LOG_PREFIX = "[ZipView]";
 
 const assetBufferCache = new Map();
 const assetRequestCache = new Map();

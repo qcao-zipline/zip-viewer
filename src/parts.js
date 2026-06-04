@@ -60,9 +60,9 @@ export function createPartsController(callbacks) {
 
       if (isSelected) {
         if (baseColor) {
-          material.color.copy(baseColor).lerp(new THREE.Color(0x0a84ff), 0.26);
+          material.color.copy(baseColor).lerp(new THREE.Color(0x8b5cf6), 0.26);
         }
-        material.emissive.setHex(0x0a84ff);
+        material.emissive.setHex(0x8b5cf6);
         material.emissiveIntensity = 0.22;
         material.transparent = viewerState.transparentMode;
         material.opacity = viewerState.transparentMode ? 0.58 : 1;

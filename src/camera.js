@@ -49,18 +49,15 @@ export function createCameraController(runtime, { getCurrentBounds }) {
     controls.update();
   }
 
-  function groundObjectToGrid(object, bounds) {
+  function placeObjectOnGrid(object, bounds) {
     if (!object || !bounds || bounds.isEmpty()) {
       return bounds;
     }
 
-    if (bounds.min.z <= 0) {
-      return bounds;
-    }
-
-    const zOffset = -bounds.min.z;
-    object.position.z += zOffset;
-    return bounds.clone().translate(new THREE.Vector3(0, 0, zOffset));
+    const center = bounds.getCenter(new THREE.Vector3());
+    const offset = new THREE.Vector3(-center.x, -center.y, -bounds.min.z);
+    object.position.add(offset);
+    return bounds.clone().translate(offset);
   }
 
   function resetCamera() {
@@ -79,7 +76,7 @@ export function createCameraController(runtime, { getCurrentBounds }) {
     fitCameraToBounds,
     focusMesh,
     rollCamera,
-    groundObjectToGrid,
+    placeObjectOnGrid,
     resetCamera,
   };
 }
