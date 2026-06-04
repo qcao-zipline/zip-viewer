@@ -101,6 +101,12 @@ export function createPartsController(callbacks) {
     mesh.frustumCulled = false;
     mesh.name = mesh.name?.trim() || `${fallbackName} ${meshIndex + 1}`;
     mesh.userData.partName = mesh.userData.partName || mesh.name;
+    if (!Array.isArray(mesh.userData.partPathSegments) || mesh.userData.partPathSegments.length === 0) {
+      mesh.userData.partPathSegments = cleanPartName(mesh.userData.partName)
+        .split(/\s+/)
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+    }
     mesh.userData.bomIndex = meshIndex + 1;
     mesh.userData.isHidden = false;
     mesh.userData.edgesBuilt = false;
@@ -245,6 +251,11 @@ export function createPartsController(callbacks) {
   }
 
   function getObjSplitPartName(material, mesh, groupIndex) {
+    const sourcePartName = mesh.userData?.partName?.trim() || mesh.name?.trim() || "";
+    if (sourcePartName) {
+      return sourcePartName;
+    }
+
     const rawName =
       material?.name?.trim() ||
       material?.userData?.name?.trim() ||
@@ -256,8 +267,7 @@ export function createPartsController(callbacks) {
       return rawName;
     }
 
-    const meshName = mesh.name?.trim() || "Part";
-    return `${meshName} Material ${groupIndex + 1}`;
+    return `Part Material ${groupIndex + 1}`;
   }
 
   function splitMeshByMaterialGroups(mesh) {
@@ -294,6 +304,9 @@ export function createPartsController(callbacks) {
       const splitPartName = getObjSplitPartName(groupMaterial, mesh, groupIndex);
       splitMesh.name = splitPartName;
       splitMesh.userData.partName = splitPartName;
+      if (Array.isArray(mesh.userData?.partPathSegments)) {
+        splitMesh.userData.partPathSegments = [...mesh.userData.partPathSegments];
+      }
       splitMesh.position.copy(mesh.position);
       splitMesh.rotation.copy(mesh.rotation);
       splitMesh.scale.copy(mesh.scale);

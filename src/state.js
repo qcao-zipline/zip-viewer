@@ -17,6 +17,7 @@ export const viewerState = {
   pendingBomRenderFrame: 0,
   theme: "light",
   bomOpen: false,
+  bomExpandedPaths: new Set(),
 };
 
 export function readStoredTheme() {

@@ -29,9 +29,13 @@ const partContextTitle = document.getElementById("part-context-title");
 const contextIsolateButton = document.getElementById("context-isolate-button");
 const contextHideButton = document.getElementById("context-hide-button");
 const bomPanel = document.getElementById("bom-panel");
+const bomResizeHandle = document.getElementById("bom-resize-handle");
 const bomSearch = document.getElementById("bom-search");
 const bomList = document.getElementById("bom-list");
 const bomEmpty = document.getElementById("bom-empty");
+
+const BOM_PANEL_MIN_WIDTH = 280;
+const BOM_PANEL_MAX_WIDTH = 720;
 
 const sceneRuntime = createSceneRuntime(canvas);
 const cameraController = createCameraController(sceneRuntime, {
@@ -126,6 +130,7 @@ function clearModel() {
     viewerState.meshes = [];
     viewerState.edgeLines = [];
     viewerState.currentBounds = null;
+    viewerState.bomExpandedPaths = new Set();
     bomController.renderBomList();
     return;
   }
@@ -147,10 +152,85 @@ function clearModel() {
   viewerState.currentBounds = null;
   viewerState.meshes = [];
   viewerState.edgeLines = [];
+  viewerState.bomExpandedPaths = new Set();
   bomController.renderBomList();
 }
 
 uiCallbacks.clearModel = clearModel;
+
+function clampBomPanelWidth(width) {
+  const viewportMax = Math.max(BOM_PANEL_MIN_WIDTH, window.innerWidth - 32);
+  return Math.min(Math.max(width, BOM_PANEL_MIN_WIDTH), Math.min(BOM_PANEL_MAX_WIDTH, viewportMax));
+}
+
+function setBomPanelWidth(width) {
+  if (!bomPanel) {
+    return;
+  }
+
+  bomPanel.style.setProperty("--bom-panel-width", `${clampBomPanelWidth(width)}px`);
+}
+
+function bindBomResizeHandle() {
+  if (!bomPanel || !bomResizeHandle) {
+    return;
+  }
+
+  let isResizing = false;
+
+  const stopResizing = () => {
+    if (!isResizing) {
+      return;
+    }
+
+    isResizing = false;
+    bomPanel.classList.remove("is-resizing");
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  };
+
+  const updateWidthFromClientX = (clientX) => {
+    const panelRect = bomPanel.getBoundingClientRect();
+    const nextWidth = clientX - panelRect.left;
+    setBomPanelWidth(nextWidth);
+  };
+
+  bomResizeHandle.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    isResizing = true;
+    bomPanel.classList.add("is-resizing");
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+    bomResizeHandle.setPointerCapture(event.pointerId);
+    updateWidthFromClientX(event.clientX);
+  });
+
+  bomResizeHandle.addEventListener("pointermove", (event) => {
+    if (!isResizing) {
+      return;
+    }
+
+    updateWidthFromClientX(event.clientX);
+  });
+
+  bomResizeHandle.addEventListener("pointerup", () => {
+    stopResizing();
+  });
+
+  bomResizeHandle.addEventListener("pointercancel", () => {
+    stopResizing();
+  });
+
+  window.addEventListener("resize", () => {
+    const panelRect = bomPanel.getBoundingClientRect();
+    if (panelRect.width > 0) {
+      setBomPanelWidth(panelRect.width);
+    }
+  });
+}
 
 function finalizeLoadedObject(object, bounds) {
   const placedBounds = cameraController.placeObjectOnGrid(object, bounds);
@@ -247,6 +327,7 @@ themeButton?.addEventListener("click", () => {
 
 bomController.bindEvents();
 interactionsController.bindEvents();
+bindBomResizeHandle();
 window.addEventListener("resize", sceneRuntime.updateRendererSize);
 
 function animate() {

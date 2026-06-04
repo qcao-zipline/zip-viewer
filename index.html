@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ZipView</title>
     <link rel="icon" type="image/png" href="./assets/Zip_Icon.png" />
-    <link rel="stylesheet" href="./styles.css?v=apple-11" />
+    <link rel="stylesheet" href="./styles.css?v=apple-17" />
     <script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.15/dist/occt-import-js.js"></script>
   </head>
   <body>
@@ -42,6 +42,14 @@
 
       <main class="viewer-stage">
         <aside id="bom-panel" class="bom-panel" aria-label="Bill of materials" hidden>
+          <div
+            id="bom-resize-handle"
+            class="bom-resize-handle"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize catalog"
+            tabindex="0"
+          ></div>
           <div class="bom-panel-shell">
             <div class="bom-panel-header">
               <div>
@@ -54,7 +62,7 @@
             </label>
 
             <div id="bom-empty" class="bom-empty" hidden>No matching parts.</div>
-            <div id="bom-list" class="bom-list" role="listbox" aria-label="Model parts"></div>
+            <div id="bom-list" class="bom-list" aria-label="Model parts"></div>
           </div>
         </aside>
         <canvas id="viewer-canvas"></canvas>
@@ -104,6 +112,6 @@
       </main>
     </div>
 
-    <script type="module" src="./src/app.js?v=apple-9"></script>
+    <script type="module" src="./src/app.js?v=apple-15"></script>
   </body>
 </html>

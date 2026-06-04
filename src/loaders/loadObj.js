@@ -11,6 +11,43 @@ import {
 const mtlLoader = new MTLLoader();
 const objLoader = new OBJLoader();
 
+function extractObjPartPaths(objText) {
+  const lines = objText.split(/\r?\n/);
+  const partPaths = [];
+  let currentGroupName = "";
+  let currentObjectName = "";
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) {
+      continue;
+    }
+
+    if (trimmedLine.startsWith("g ")) {
+      currentGroupName = trimmedLine.slice(2).trim();
+      continue;
+    }
+
+    if (trimmedLine.startsWith("o ")) {
+      currentObjectName = trimmedLine.slice(2).trim();
+      continue;
+    }
+
+    if (trimmedLine.startsWith("usemtl ")) {
+      partPaths.push(currentGroupName || currentObjectName || "Unnamed body");
+    }
+  }
+
+  return partPaths;
+}
+
+function splitObjPartPath(partPath = "") {
+  return partPath
+    .split(/\s+/)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment && !/^droid_export_attempt_\d+$/i.test(segment));
+}
+
 async function loadObjMaterials(modelPath, objText, logViewerEvent) {
   const baseUrl = getAssetBaseUrl(modelPath);
   const mtllibName = extractObjMaterialLibraryName(objText);
@@ -67,10 +104,12 @@ export async function loadObjFile(file, helpers) {
   });
 
   const objText = await file.text();
+  const objPartPaths = extractObjPartPaths(objText);
   logViewerEvent("OBJ text ready", {
     fileName: file.name,
     characters: objText.length,
     mtllib: extractObjMaterialLibraryName(objText) || null,
+    partPathCount: objPartPaths.length,
   });
 
   let materials = null;
@@ -87,6 +126,22 @@ export async function loadObjFile(file, helpers) {
   const object = objLoader.parse(objText);
   logViewerEvent("OBJ parse finished", {
     fileName: file.name,
+  });
+
+  let sourceMeshIndex = 0;
+  object.traverse((child) => {
+    if (!child.isMesh) {
+      return;
+    }
+
+    const sourcePartPath = objPartPaths[sourceMeshIndex];
+    if (sourcePartPath) {
+      child.name = sourcePartPath;
+      child.userData.partName = sourcePartPath;
+      child.userData.partPathSegments = splitObjPartPath(sourcePartPath);
+    }
+
+    sourceMeshIndex += 1;
   });
 
   const splitMeshCount = splitObjectByMaterialGroups(object);
