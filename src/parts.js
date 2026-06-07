@@ -26,6 +26,29 @@ export function createPartsController(callbacks) {
     return cleanPartName(mesh?.userData?.partName || mesh?.name || "Unnamed body");
   }
 
+  function getPartGroupSegments(mesh) {
+    if (Array.isArray(mesh?.userData?.partPathSegments) && mesh.userData.partPathSegments.length > 1) {
+      return mesh.userData.partPathSegments.slice(0, -1);
+    }
+
+    if (Array.isArray(mesh?.userData?.partPathSegments) && mesh.userData.partPathSegments.length === 1) {
+      return mesh.userData.partPathSegments;
+    }
+
+    return getPartName(mesh)
+      .split(/\s+/)
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+  }
+
+  function getPartIsolationKey(mesh) {
+    return getPartGroupSegments(mesh).join(" ");
+  }
+
+  function getAssemblyKey(mesh) {
+    return mesh?.userData?.assemblyKey || "";
+  }
+
   function setPartVisibility(mesh, isVisible) {
     if (!mesh) {
       return;
@@ -42,9 +65,17 @@ export function createPartsController(callbacks) {
 
     const isHovered = viewerState.hoveredMesh === mesh;
     const isSelected = viewerState.selectedMesh === mesh;
-    const isIsolatedSelection = Boolean(viewerState.isolatedMesh);
-    const isDimmed = isIsolatedSelection && viewerState.isolatedMesh !== mesh;
+    const isolatedAssemblyKey = viewerState.isolatedAssemblyKey;
+    const isolatedPartKey = viewerState.isolatedPartKey;
+    const meshIsolationKey = isolatedAssemblyKey || getPartIsolationKey(mesh);
+    const currentIsolationKey = isolatedAssemblyKey || isolatedPartKey;
+    const meshGroupKey = isolatedAssemblyKey ? getAssemblyKey(mesh) : meshIsolationKey;
+    const isIsolatedSelection = Boolean(currentIsolationKey);
+    const isIsolatedMesh = isIsolatedSelection && meshGroupKey === currentIsolationKey;
+    const isDimmed = isIsolatedSelection && !isIsolatedMesh;
     const baseOpacity = viewerState.transparentMode ? 0.34 : 1;
+
+    mesh.visible = !mesh.userData.isHidden && (!isIsolatedSelection || isIsolatedMesh);
 
     for (const material of getMaterialList(mesh)) {
       const baseColor = material.userData?.baseColor;
@@ -57,6 +88,13 @@ export function createPartsController(callbacks) {
       material.transparent = viewerState.transparentMode || isDimmed;
       material.opacity = isDimmed ? 0.12 : baseOpacity;
       material.depthWrite = !(viewerState.transparentMode || isDimmed);
+
+      if (isIsolatedMesh) {
+        material.transparent = viewerState.transparentMode;
+        material.opacity = viewerState.transparentMode ? 0.58 : 1;
+        material.depthWrite = !viewerState.transparentMode;
+        continue;
+      }
 
       if (isSelected) {
         if (baseColor) {
@@ -91,6 +129,8 @@ export function createPartsController(callbacks) {
     viewerState.hoveredMesh = null;
     viewerState.selectedMesh = null;
     viewerState.isolatedMesh = null;
+    viewerState.isolatedPartKey = null;
+    viewerState.isolatedAssemblyKey = null;
     refreshPartStates();
     callbacks.hideTooltip();
   }
@@ -107,6 +147,7 @@ export function createPartsController(callbacks) {
         .map((segment) => segment.trim())
         .filter(Boolean);
     }
+    mesh.userData.partGroupKey = getPartIsolationKey(mesh);
     mesh.userData.bomIndex = meshIndex + 1;
     mesh.userData.isHidden = false;
     mesh.userData.edgesBuilt = false;
@@ -169,6 +210,8 @@ export function createPartsController(callbacks) {
   function selectMesh(mesh, { isolate = false } = {}) {
     viewerState.selectedMesh = mesh;
     viewerState.isolatedMesh = isolate ? mesh : null;
+    viewerState.isolatedPartKey = isolate && mesh ? getPartIsolationKey(mesh) : null;
+    viewerState.isolatedAssemblyKey = null;
     refreshPartStates();
     callbacks.renderBomList();
 
@@ -183,10 +226,37 @@ export function createPartsController(callbacks) {
   function clearIsolation() {
     viewerState.selectedMesh = null;
     viewerState.isolatedMesh = null;
+    viewerState.isolatedPartKey = null;
+    viewerState.isolatedAssemblyKey = null;
     refreshPartStates();
     callbacks.renderBomList();
     callbacks.hideTooltip();
     callbacks.setStatus(callbacks.getIdleStatus());
+  }
+
+  function selectAssembly(assemblyKey) {
+    if (!assemblyKey) {
+      clearIsolation();
+      return;
+    }
+
+    const assemblyMeshes = viewerState.meshes.filter(
+      (mesh) => !mesh.userData.isHidden && getAssemblyKey(mesh) === assemblyKey,
+    );
+    const leadMesh = assemblyMeshes[0] || null;
+
+    viewerState.selectedMesh = leadMesh;
+    viewerState.isolatedMesh = leadMesh;
+    viewerState.isolatedPartKey = null;
+    viewerState.isolatedAssemblyKey = assemblyKey;
+    refreshPartStates();
+    callbacks.renderBomList();
+    callbacks.hideTooltip();
+    callbacks.setStatus(
+      leadMesh?.userData?.assemblyLabel
+        ? `Isolated: ${leadMesh.userData.assemblyLabel}`
+        : callbacks.getIdleStatus(),
+    );
   }
 
   function sliceGeometryByGroup(geometry, group) {
@@ -307,6 +377,15 @@ export function createPartsController(callbacks) {
       if (Array.isArray(mesh.userData?.partPathSegments)) {
         splitMesh.userData.partPathSegments = [...mesh.userData.partPathSegments];
       }
+      if (mesh.userData?.assemblyKey) {
+        splitMesh.userData.assemblyKey = mesh.userData.assemblyKey;
+        splitMesh.userData.assemblyLabel = mesh.userData.assemblyLabel;
+        splitMesh.userData.assemblyPartNumber = mesh.userData.assemblyPartNumber;
+        splitMesh.userData.assemblyOrder = mesh.userData.assemblyOrder;
+      }
+      if (mesh.userData?.partGroupKey) {
+        splitMesh.userData.partGroupKey = mesh.userData.partGroupKey;
+      }
       splitMesh.position.copy(mesh.position);
       splitMesh.rotation.copy(mesh.rotation);
       splitMesh.scale.copy(mesh.scale);
@@ -364,6 +443,7 @@ export function createPartsController(callbacks) {
     hidePart,
     showAllParts,
     selectMesh,
+    selectAssembly,
     clearIsolation,
     splitObjectByMaterialGroups,
   };

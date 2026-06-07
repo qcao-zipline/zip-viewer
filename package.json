@@ -1,7 +1,7 @@
 {
   "scripts": {
-    "dev": "python3 -m http.server 3000",
-    "start": "python3 -m http.server 3000"
+    "dev": "python3 -m http.server 3000 --bind 127.0.0.1",
+    "start": "python3 -m http.server 3000 --bind 127.0.0.1"
   },
   "dependencies": {
     "opencascade-tools": "^0.0.9"

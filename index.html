@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ZipView</title>
     <link rel="icon" type="image/png" href="./assets/Zip_Icon.png" />
-    <link rel="stylesheet" href="./styles.css?v=apple-17" />
+    <link rel="stylesheet" href="./styles.css?v=apple-31" />
     <script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.15/dist/occt-import-js.js"></script>
   </head>
   <body>
@@ -33,10 +33,10 @@
         </div>
 
         <div class="toolbar-actions">
-          <button id="theme-button" type="button" aria-pressed="false" aria-label="Toggle dark mode">Dark</button>
-          <button id="reload-model-button" type="button">Reload</button>
+          <button id="theme-button" class="toolbar-icon-button" type="button" aria-pressed="false" aria-label="Toggle dark mode">☀</button>
+          <button id="reload-model-button" class="toolbar-icon-button" type="button" aria-label="Reload model">↻</button>
           <button id="reset-view-button" type="button">Reset View</button>
-          <button id="transparency-button" type="button" aria-pressed="false">Transparent</button>
+          <button id="transparency-button" type="button" aria-pressed="false">Xray</button>
         </div>
       </header>
 
@@ -55,6 +55,9 @@
               <div>
                 <div class="bom-title">Catalog</div>
               </div>
+              <button id="bom-collapse-button" class="bom-collapse-button" type="button">
+                Collapse All
+              </button>
             </div>
 
             <label class="bom-search-shell" for="bom-search">
@@ -82,11 +85,17 @@
                 class="model-card"
                 type="button"
                 aria-label="Open Zip model"
-                data-model-path="./assets/models/demo.step"
-                data-fallback-model-path="./assets/models/demo.step"
+                data-model-path="./assets/models/50000-000_A01_1-placeholder.obj"
+                data-fallback-model-path="./assets/models/F18.stl"
                 data-model-name="Zip"
               >
                 <img src="./assets/Zip_Render.png" alt="Zip model" />
+                <span class="model-card-label">
+                  <span class="model-card-title-line">
+                    <span class="model-card-title">Aircraft</span>
+                    <span class="model-card-subtitle model-card-subtitle-inline">EV4</span>
+                  </span>
+                </span>
               </button>
               <button
                 class="model-card"
@@ -97,6 +106,41 @@
                 data-model-name="Droid"
               >
                 <img src="./assets/Droid_Render.png" alt="Droid model" />
+                <span class="model-card-label">
+                  <span class="model-card-title-line">
+                    <span class="model-card-title">Droid</span>
+                    <span class="model-card-subtitle model-card-subtitle-inline">EV3</span>
+                  </span>
+                </span>
+              </button>
+              <button
+                class="model-card model-card-placeholder"
+                type="button"
+                aria-label="Open Dock model"
+                data-model-path="./assets/models/DOCK_EV4_Export_Attempt_1.obj"
+                data-fallback-model-path="./assets/models/DOCK_EV4_Export_Attempt_1.obj"
+                data-model-name="Dock"
+              >
+                <img src="./assets/Dock.png"/>
+                <span class="model-card-label">
+                  <span class="model-card-title-line">
+                    <span class="model-card-title">Dock</span>
+                    <span class="model-card-subtitle model-card-subtitle-inline">EV4</span>
+                  </span>
+                </span>
+              </button>
+              <button
+                class="model-card model-card-placeholder"
+                type="button"
+                aria-label="Zipping Point model placeholder"
+                aria-disabled="true"
+                data-disabled="true"
+                data-model-name="Zipping Point"
+              >
+                <span class="model-card-label">
+                  <span class="model-card-title">Zipping Point</span>
+                  <span class="model-card-subtitle">lmao</span>
+                </span>
               </button>
             </div>
           </div>
@@ -112,6 +156,6 @@
       </main>
     </div>
 
-    <script type="module" src="./src/app.js?v=apple-15"></script>
+    <script type="module" src="./src/app.js?v=apple-30"></script>
   </body>
 </html>

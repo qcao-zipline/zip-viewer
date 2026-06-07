@@ -144,12 +144,15 @@ button {
 }
 
 .toolbar-menu-button {
-  display: inline-grid;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 4px;
   width: 42px;
+  height: 42px;
   min-width: 42px;
-  padding: 10px;
-  place-items: center;
+  padding: 0;
 }
 
 .toolbar-menu-button span {
@@ -158,6 +161,18 @@ button {
   height: 2px;
   border-radius: 999px;
   background: currentColor;
+}
+
+.toolbar-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0;
+  font-size: 1.05rem;
+  line-height: 1;
 }
 
 .brand-badge {
@@ -339,7 +354,7 @@ button {
 .bom-panel-header {
   display: flex;
   align-items: flex-start;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 12px;
 }
 
@@ -355,6 +370,29 @@ button {
   font-size: 1.4rem;
   font-weight: 700;
   letter-spacing: -0.03em;
+}
+
+.bom-collapse-button {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bom-chip-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 620;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.bom-collapse-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(100, 58, 237, 0.22);
+  background: rgba(100, 58, 237, 0.08);
 }
 
 .bom-search-shell {
@@ -484,6 +522,27 @@ button {
   border-bottom: none;
 }
 
+.bom-file-icon {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 14px;
+  border: 1px solid rgba(100, 58, 237, 0.2);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(100, 58, 237, 0.06));
+  position: relative;
+}
+
+.bom-file-icon::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 5px;
+  height: 5px;
+  background: rgba(100, 58, 237, 0.16);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+
 .bom-folder-name {
   min-width: 0;
   flex: 1;
@@ -537,25 +596,51 @@ button {
   background: rgba(100, 58, 237, 0.12);
 }
 
-.bom-file-icon {
-  flex: 0 0 auto;
-  width: 12px;
-  height: 14px;
-  border: 1px solid rgba(100, 58, 237, 0.2);
-  border-radius: 3px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(100, 58, 237, 0.06));
-  position: relative;
+.bom-assembly-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 16px;
+  background: var(--bom-item-bg);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--inner-glow);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
 }
 
-.bom-file-icon::before {
-  content: "";
-  position: absolute;
-  top: -1px;
-  right: -1px;
-  width: 5px;
-  height: 5px;
-  background: rgba(100, 58, 237, 0.16);
-  clip-path: polygon(0 0, 100% 0, 100% 100%);
+.bom-assembly-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(100, 58, 237, 0.22);
+  box-shadow:
+    var(--inner-glow),
+    0 10px 18px rgba(15, 23, 42, 0.08);
+}
+
+.bom-assembly-button.is-active {
+  border-color: rgba(100, 58, 237, 0.26);
+  background: linear-gradient(180deg, rgba(100, 58, 237, 0.12), rgba(100, 58, 237, 0.06));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.46),
+    0 12px 24px rgba(100, 58, 237, 0.14);
+}
+
+.bom-assembly-name {
+  min-width: 0;
+  flex: 1;
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bom-leaf-name {
@@ -589,8 +674,10 @@ button {
   inset: 0;
   z-index: 4;
   display: grid;
-  place-items: center;
+  place-items: start center;
   padding: 96px 24px 28px;
+  overflow-y: auto;
+  overflow-x: hidden;
   background:
     url("./assets/Airmesh.svg") center center / cover no-repeat,
     var(--surface-overlay),
@@ -604,7 +691,8 @@ button {
 .model-picker-shell {
   display: grid;
   gap: 22px;
-  width: min(1120px, 100%);
+  width: min(2200px, calc(100vw - 24px));
+  margin: 0 auto;
 }
 
 .model-picker-header {
@@ -621,7 +709,7 @@ button {
 
 .model-picker-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 22px;
   align-items: stretch;
 }
@@ -632,7 +720,7 @@ button {
   border: 1px solid var(--card-line);
   border-radius: 32px;
   padding: 0;
-  min-height: min(46vh, 480px);
+  min-height: clamp(420px, 44vw, 640px);
   background: var(--card-bg);
   box-shadow: var(--shadow);
   cursor: pointer;
@@ -665,10 +753,70 @@ button {
   left: 24px;
   bottom: 22px;
   z-index: 1;
-  font-size: clamp(1.6rem, 3.4vw, 2.8rem);
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  color: #ffffff;
+}
+
+.model-card-title-line {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.model-card-title {
+  font-size: clamp(1.35rem, 2.8vw, 2.25rem);
   font-weight: 650;
   letter-spacing: -0.03em;
-  color: #ffffff;
+}
+
+.model-card-subtitle {
+  display: block;
+  justify-self: start;
+  font-size: 0.95rem;
+  font-weight: 520;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.model-card-subtitle-inline {
+  display: inline;
+}
+
+.model-card-placeholder {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  padding: 28px 24px;
+  background:
+    radial-gradient(circle at top right, rgba(100, 58, 237, 0.26), transparent 42%),
+    linear-gradient(160deg, rgba(14, 18, 29, 0.96), rgba(23, 30, 48, 0.9));
+}
+
+.model-card-placeholder::after {
+  background:
+    linear-gradient(180deg, rgba(7, 10, 18, 0.06), rgba(7, 10, 18, 0.44)),
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.03) 0,
+      rgba(255, 255, 255, 0.03) 12px,
+      transparent 12px,
+      transparent 26px
+    );
+}
+
+.model-card-placeholder .model-card-label {
+  position: relative;
+  left: auto;
+  bottom: auto;
+}
+
+.model-card-placeholder:hover {
+  box-shadow:
+    0 26px 48px rgba(15, 21, 35, 0.22),
+    0 0 0 1px rgba(100, 58, 237, 0.2);
 }
 
 .loading-screen {
@@ -810,7 +958,7 @@ button {
   background: linear-gradient(180deg, rgba(100, 58, 237, 0.16), rgba(81, 37, 216, 0.08));
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
   .bom-panel {
     top: auto;
     right: 16px;
@@ -847,10 +995,16 @@ button {
   }
 
   .model-picker-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .model-card {
     min-height: 320px;
+  }
+}
+
+@media (max-width: 700px) {
+  .model-picker-grid {
+    grid-template-columns: 1fr;
   }
 }

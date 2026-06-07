@@ -30,12 +30,15 @@ const contextIsolateButton = document.getElementById("context-isolate-button");
 const contextHideButton = document.getElementById("context-hide-button");
 const bomPanel = document.getElementById("bom-panel");
 const bomResizeHandle = document.getElementById("bom-resize-handle");
+const bomCollapseButton = document.getElementById("bom-collapse-button");
 const bomSearch = document.getElementById("bom-search");
 const bomList = document.getElementById("bom-list");
 const bomEmpty = document.getElementById("bom-empty");
 
 const BOM_PANEL_MIN_WIDTH = 280;
 const BOM_PANEL_MAX_WIDTH = 720;
+const DEFAULT_VIEWER_MODEL_PATH = "./assets/models/Cube_Placeholder.obj";
+const DEFAULT_VIEWER_MODEL_NAME = "Cube Placeholder";
 
 const sceneRuntime = createSceneRuntime(canvas);
 const cameraController = createCameraController(sceneRuntime, {
@@ -76,13 +79,28 @@ bomController = createBomController({
   elements: {
     bomPanel,
     bomMenuButton,
+    bomCollapseButton,
     bomSearch,
     bomList,
     bomEmpty,
   },
   getPartName: partsController.getPartName,
-  onSelectMesh: partsController.selectMesh,
-  onFocusMesh: cameraController.focusMesh,
+  onSelectMesh: (target, options = {}) => {
+    if (options.mode === "assembly") {
+      partsController.selectAssembly(target);
+      return;
+    }
+
+    partsController.selectMesh(target, options);
+  },
+  onFocusMesh: (target) => {
+    if (Array.isArray(target)) {
+      cameraController.focusMeshes(target);
+      return;
+    }
+
+    cameraController.focusMesh(target);
+  },
 });
 
 partCallbacks.renderBomList = bomController.renderBomList;
@@ -116,6 +134,10 @@ function logLoadTimings(modelName, modelPath, timings) {
 
 function logViewerEvent(eventName, details = {}) {
   console.info(`${LOAD_LOG_PREFIX} ${eventName}`, details);
+}
+
+function setDocumentTitle(label = "") {
+  document.title = label ? `ZipView - ${label}` : "ZipView";
 }
 
 function clearModel() {
@@ -282,17 +304,33 @@ async function loadBundledModel() {
   }
 }
 
-function openSelectedModel(modelPath, modelName, fallbackModelPath = "") {
-  viewerState.currentModelPath = modelPath;
-  viewerState.currentFallbackModelPath = fallbackModelPath || null;
-  viewerState.currentModelName = modelName;
-  uiController.hideModelPicker();
-  uiController.setStatus(`Opening ${modelName}...`);
+function openSelectedModel(modelPath, modelName, fallbackModelPath = "", nextView = "viewer") {
+  const resolvedModelPath = modelPath || DEFAULT_VIEWER_MODEL_PATH;
+  const resolvedFallbackModelPath = fallbackModelPath || resolvedModelPath;
+  const resolvedModelName = modelName || DEFAULT_VIEWER_MODEL_NAME;
+
+  viewerState.currentModelPath = resolvedModelPath;
+  viewerState.currentFallbackModelPath = resolvedFallbackModelPath;
+  viewerState.currentModelName = resolvedModelName;
+  viewerState.currentView = nextView;
+  uiController.applyPageState();
+  if (nextView === "viewer") {
+    uiController.hideModelPicker();
+  } else {
+    bomController.applyBomPanelState();
+  }
+  setDocumentTitle(resolvedModelName);
+  uiController.setStatus(`Opening ${resolvedModelName}...`);
   loadBundledModel();
 }
 
 for (const cardButton of modelCardButtons) {
   cardButton.addEventListener("click", () => {
+    if (cardButton.dataset.disabled === "true") {
+      uiController.setStatus(`${cardButton.dataset.modelName || "This model"} is not wired up yet.`);
+      return;
+    }
+
     openSelectedModel(
       cardButton.dataset.modelPath,
       cardButton.dataset.modelName,
@@ -305,6 +343,7 @@ homeButton?.addEventListener("click", () => {
   viewerState.currentModelPath = null;
   viewerState.currentFallbackModelPath = null;
   viewerState.currentModelName = null;
+  setDocumentTitle("");
   uiController.showModelPicker();
 });
 

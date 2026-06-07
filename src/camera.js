@@ -35,6 +35,21 @@ export function createCameraController(runtime, { getCurrentBounds }) {
     }
   }
 
+  function focusMeshes(meshes) {
+    if (!Array.isArray(meshes) || meshes.length === 0) {
+      return;
+    }
+
+    const bounds = new THREE.Box3();
+    for (const mesh of meshes) {
+      bounds.expandByObject(mesh);
+    }
+
+    if (!bounds.isEmpty()) {
+      fitCameraToBounds(bounds);
+    }
+  }
+
   function rollCamera(angleRadians) {
     const viewDirection = new THREE.Vector3()
       .subVectors(controls.target, camera.position)
@@ -75,6 +90,7 @@ export function createCameraController(runtime, { getCurrentBounds }) {
   return {
     fitCameraToBounds,
     focusMesh,
+    focusMeshes,
     rollCamera,
     placeObjectOnGrid,
     resetCamera,

@@ -10,6 +10,12 @@ export function createUiController({ elements, applySceneTheme, callbacks }) {
     transparencyButton,
   } = elements;
 
+  function applyPageState() {
+    if (modelPicker) {
+      modelPicker.hidden = viewerState.currentView !== "home";
+    }
+  }
+
   function setStatus(message) {
     if (statusText) {
       statusText.textContent = message;
@@ -53,16 +59,20 @@ export function createUiController({ elements, applySceneTheme, callbacks }) {
   }
 
   function showModelPicker() {
-    modelPicker.hidden = false;
+    viewerState.currentView = "home";
     viewerState.bomOpen = false;
     setLoadingState(false);
     callbacks.clearModel();
+    applyPageState();
     callbacks.applyBomPanelState();
     setStatus("Choose a model");
   }
 
   function hideModelPicker() {
-    modelPicker.hidden = true;
+    if (viewerState.currentView === "home") {
+      viewerState.currentView = "viewer";
+    }
+    applyPageState();
     callbacks.applyBomPanelState();
   }
 
@@ -73,7 +83,7 @@ export function createUiController({ elements, applySceneTheme, callbacks }) {
     if (themeButton) {
       const isDark = viewerState.theme === "dark";
       themeButton.setAttribute("aria-pressed", String(isDark));
-      themeButton.textContent = isDark ? "Light" : "Dark";
+      themeButton.textContent = isDark ? "☾" : "☀";
       themeButton.setAttribute(
         "aria-label",
         isDark ? "Switch to light mode" : "Switch to dark mode",
@@ -106,6 +116,7 @@ export function createUiController({ elements, applySceneTheme, callbacks }) {
     waitForNextPaint,
     showModelPicker,
     hideModelPicker,
+    applyPageState,
     applyTheme,
     toggleTheme,
     applyTransparencyState,

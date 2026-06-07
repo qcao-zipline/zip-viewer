@@ -1,7 +1,41 @@
 import { viewerState } from "./state.js";
 
 export function createBomController({ elements, getPartName, onSelectMesh, onFocusMesh }) {
-  const { bomPanel, bomMenuButton, bomSearch, bomList, bomEmpty } = elements;
+  const { bomPanel, bomMenuButton, bomCollapseButton, bomSearch, bomList, bomEmpty } = elements;
+
+  function getAssemblyGroups(meshes) {
+    const groups = new Map();
+
+    for (const mesh of meshes) {
+      const assemblyKey = mesh.userData?.assemblyKey;
+      const assemblyLabel = mesh.userData?.assemblyLabel;
+      const assemblyPartNumber = mesh.userData?.assemblyPartNumber;
+      const assemblyOrder = mesh.userData?.assemblyOrder ?? Number.MAX_SAFE_INTEGER;
+      if (!assemblyKey || !assemblyLabel) {
+        continue;
+      }
+
+      if (!groups.has(assemblyKey)) {
+        groups.set(assemblyKey, {
+          assemblyKey,
+          assemblyLabel,
+          assemblyPartNumber,
+          assemblyOrder,
+          meshes: [],
+        });
+      }
+
+      groups.get(assemblyKey).meshes.push(mesh);
+    }
+
+    return Array.from(groups.values()).sort((left, right) => {
+      if (left.assemblyOrder !== right.assemblyOrder) {
+        return left.assemblyOrder - right.assemblyOrder;
+      }
+
+      return left.assemblyLabel.localeCompare(right.assemblyLabel);
+    });
+  }
 
   function getMeshPathSegments(mesh) {
     if (Array.isArray(mesh?.userData?.partPathSegments) && mesh.userData.partPathSegments.length > 0) {
@@ -261,6 +295,11 @@ export function createBomController({ elements, getPartName, onSelectMesh, onFoc
     applyBomPanelState();
   }
 
+  function collapseAll() {
+    viewerState.bomExpandedPaths = new Set();
+    renderBomList();
+  }
+
   function renderBomList() {
     if (!bomList || !bomEmpty) {
       return;
@@ -268,9 +307,55 @@ export function createBomController({ elements, getPartName, onSelectMesh, onFoc
 
     const query = (bomSearch?.value || "").trim().toLowerCase();
     const visibleMeshes = viewerState.meshes.filter((mesh) => !mesh.userData.isHidden);
-    const treeRoot = buildBomTree(visibleMeshes);
+    const assemblyGroups = getAssemblyGroups(visibleMeshes);
 
     bomList.innerHTML = "";
+
+    if (assemblyGroups.length > 0) {
+      const filteredAssemblies = assemblyGroups.filter((group) =>
+        group.assemblyLabel.toLowerCase().includes(query) ||
+        group.assemblyKey.toLowerCase().includes(query) ||
+        group.assemblyPartNumber?.toLowerCase().includes(query),
+      );
+      bomEmpty.hidden = filteredAssemblies.length > 0;
+
+      const assemblyList = document.createElement("ul");
+      assemblyList.className = "bom-tree-root";
+
+      for (const group of filteredAssemblies) {
+        const item = document.createElement("li");
+        item.className = "bom-tree-item bom-tree-leaf";
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "bom-leaf-button bom-assembly-button";
+        button.classList.toggle("is-active", viewerState.isolatedAssemblyKey === group.assemblyKey);
+
+        const icon = document.createElement("span");
+        icon.className = "bom-folder-icon";
+        icon.setAttribute("aria-hidden", "true");
+
+        const name = document.createElement("span");
+        name.className = "bom-leaf-name bom-assembly-name";
+        name.textContent = group.assemblyLabel;
+
+        button.appendChild(icon);
+        button.appendChild(name);
+        button.appendChild(createCountBadge(group.meshes.length));
+        button.addEventListener("click", () => {
+          onSelectMesh(group.assemblyKey, { isolate: true, mode: "assembly" });
+          onFocusMesh(group.meshes);
+        });
+        item.appendChild(button);
+        assemblyList.appendChild(item);
+      }
+
+      bomList.appendChild(assemblyList);
+
+      return;
+    }
+
+    const treeRoot = buildBomTree(visibleMeshes);
     const hasVisibleMatches = Array.from(treeRoot.children.values()).some((childNode) =>
       treeContainsMatch(childNode, query),
     );
@@ -320,11 +405,16 @@ export function createBomController({ elements, getPartName, onSelectMesh, onFoc
     bomMenuButton?.addEventListener("click", () => {
       toggleBomPanel();
     });
+
+    bomCollapseButton?.addEventListener("click", () => {
+      collapseAll();
+    });
   }
 
   return {
     applyBomPanelState,
     toggleBomPanel,
+    collapseAll,
     renderBomList,
     scheduleBomRender,
     bindEvents,

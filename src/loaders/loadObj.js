@@ -10,6 +10,21 @@ import {
 
 const mtlLoader = new MTLLoader();
 const objLoader = new OBJLoader();
+const ASSEMBLY_PART_NUMBER_LIST_PATH = "./assets/Part_Numbers_List.csv";
+let cachedAssemblyPartNumbers = null;
+
+function shouldUseDroidAssemblyGrouping(assetPath = "") {
+  if (!assetPath) {
+    return false;
+  }
+
+  const assetFileName = assetPath.split("/").pop() || "";
+  return /^droid_export_attempt_\d+\.obj$/i.test(assetFileName);
+}
+
+function normalizeAssemblySegment(segment = "") {
+  return segment.replace(/^_+/, "").trim();
+}
 
 function extractObjPartPaths(objText) {
   const lines = objText.split(/\r?\n/);
@@ -46,6 +61,56 @@ function splitObjPartPath(partPath = "") {
     .split(/\s+/)
     .map((segment) => segment.trim())
     .filter((segment) => segment && !/^droid_export_attempt_\d+$/i.test(segment));
+}
+
+function getSegmentLeadingPartNumber(segment = "") {
+  const normalizedSegment = normalizeAssemblySegment(segment);
+  const match = normalizedSegment.match(/^(\d+)_/);
+  return match ? match[1] : "";
+}
+
+async function loadAssemblyPartNumbers(logViewerEvent) {
+  if (cachedAssemblyPartNumbers) {
+    return cachedAssemblyPartNumbers;
+  }
+
+  try {
+    const csvText = await fetchAssetText(ASSEMBLY_PART_NUMBER_LIST_PATH);
+    cachedAssemblyPartNumbers = csvText
+      .split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+  } catch (error) {
+    logViewerEvent("Assembly part number load failed", {
+      path: ASSEMBLY_PART_NUMBER_LIST_PATH,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    cachedAssemblyPartNumbers = [];
+  }
+
+  return cachedAssemblyPartNumbers;
+}
+
+function getAssemblyMatchForSegments(segments, assemblyPartNumbers) {
+  const assemblyOrderByPartNumber = new Map(
+    assemblyPartNumbers.map((partNumber, index) => [partNumber, index]),
+  );
+
+  for (const segment of segments) {
+    const normalizedSegment = normalizeAssemblySegment(segment);
+    const leadingPartNumber = getSegmentLeadingPartNumber(normalizedSegment);
+
+    if (assemblyOrderByPartNumber.has(leadingPartNumber)) {
+      return {
+        assemblyKey: normalizedSegment,
+        assemblyLabel: normalizedSegment,
+        assemblyPartNumber: leadingPartNumber,
+        assemblyOrder: assemblyOrderByPartNumber.get(leadingPartNumber),
+      };
+    }
+  }
+
+  return null;
 }
 
 async function loadObjMaterials(modelPath, objText, logViewerEvent) {
@@ -105,11 +170,17 @@ export async function loadObjFile(file, helpers) {
 
   const objText = await file.text();
   const objPartPaths = extractObjPartPaths(objText);
+  const useAssemblyGrouping = shouldUseDroidAssemblyGrouping(assetPath);
+  const assemblyPartNumbers = useAssemblyGrouping
+    ? await loadAssemblyPartNumbers(logViewerEvent)
+    : [];
   logViewerEvent("OBJ text ready", {
     fileName: file.name,
     characters: objText.length,
     mtllib: extractObjMaterialLibraryName(objText) || null,
     partPathCount: objPartPaths.length,
+    assemblyPartNumberCount: assemblyPartNumbers.length,
+    useAssemblyGrouping,
   });
 
   let materials = null;
@@ -139,6 +210,15 @@ export async function loadObjFile(file, helpers) {
       child.name = sourcePartPath;
       child.userData.partName = sourcePartPath;
       child.userData.partPathSegments = splitObjPartPath(sourcePartPath);
+      const assemblyMatch = useAssemblyGrouping
+        ? getAssemblyMatchForSegments(child.userData.partPathSegments, assemblyPartNumbers)
+        : null;
+      if (assemblyMatch) {
+        child.userData.assemblyKey = assemblyMatch.assemblyKey;
+        child.userData.assemblyLabel = assemblyMatch.assemblyLabel;
+        child.userData.assemblyPartNumber = assemblyMatch.assemblyPartNumber;
+        child.userData.assemblyOrder = assemblyMatch.assemblyOrder;
+      }
     }
 
     sourceMeshIndex += 1;
