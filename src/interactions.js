@@ -130,7 +130,11 @@ export function createInteractionsController({
       hideContextMenu();
 
       const intersectedMesh = getIntersectedMesh(event);
-      partsController.selectMesh(intersectedMesh);
+      if (viewerState.isolatedAssemblyKey) {
+        partsController.selectMeshWithinAssemblyIsolation(intersectedMesh);
+      } else {
+        partsController.selectMesh(intersectedMesh);
+      }
 
       if (intersectedMesh) {
         showTooltip(intersectedMesh, event.clientX, event.clientY, "Selected");
@@ -168,7 +172,11 @@ export function createInteractionsController({
       hideContextMenu();
       const intersectedMesh = getIntersectedMesh(event);
       if (intersectedMesh) {
-        partsController.selectMesh(intersectedMesh);
+        if (viewerState.isolatedAssemblyKey) {
+          partsController.selectMeshWithinAssemblyIsolation(intersectedMesh);
+        } else {
+          partsController.selectMesh(intersectedMesh);
+        }
         showTooltip(intersectedMesh, event.clientX, event.clientY, "Selected");
         showContextMenu(intersectedMesh, event.clientX, event.clientY);
         return;

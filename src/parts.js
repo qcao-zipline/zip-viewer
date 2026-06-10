@@ -49,6 +49,14 @@ export function createPartsController(callbacks) {
     return mesh?.userData?.assemblyKey || "";
   }
 
+  function meshBelongsToAssembly(mesh, assemblyKey) {
+    if (!mesh || !assemblyKey) {
+      return false;
+    }
+
+    return getAssemblyKey(mesh) === assemblyKey;
+  }
+
   function setPartVisibility(mesh, isVisible) {
     if (!mesh) {
       return;
@@ -208,6 +216,17 @@ export function createPartsController(callbacks) {
   }
 
   function selectMesh(mesh, { isolate = false } = {}) {
+    const activeAssemblyKey = viewerState.isolatedAssemblyKey;
+
+    if (
+      activeAssemblyKey &&
+      !isolate &&
+      (mesh === null || meshBelongsToAssembly(mesh, activeAssemblyKey))
+    ) {
+      selectMeshWithinAssemblyIsolation(mesh);
+      return;
+    }
+
     viewerState.selectedMesh = mesh;
     viewerState.isolatedMesh = isolate ? mesh : null;
     viewerState.isolatedPartKey = isolate && mesh ? getPartIsolationKey(mesh) : null;
@@ -221,6 +240,39 @@ export function createPartsController(callbacks) {
     }
 
     callbacks.setStatus(callbacks.getIdleStatus());
+  }
+
+  function selectMeshWithinAssemblyIsolation(mesh) {
+    const activeAssemblyKey = viewerState.isolatedAssemblyKey;
+
+    if (!activeAssemblyKey) {
+      selectMesh(mesh);
+      return;
+    }
+
+    if (!mesh) {
+      viewerState.selectedMesh = null;
+      viewerState.isolatedMesh = null;
+      viewerState.isolatedPartKey = null;
+      refreshPartStates();
+      callbacks.renderBomList();
+      callbacks.hideTooltip();
+      callbacks.setStatus(callbacks.getIdleStatus());
+      return;
+    }
+
+    if (!meshBelongsToAssembly(mesh, activeAssemblyKey)) {
+      refreshPartStates();
+      callbacks.renderBomList();
+      return;
+    }
+
+    viewerState.selectedMesh = mesh;
+    viewerState.isolatedMesh = mesh;
+    viewerState.isolatedPartKey = null;
+    refreshPartStates();
+    callbacks.renderBomList();
+    callbacks.setStatus(`Selected: ${getPartName(mesh)}`);
   }
 
   function clearIsolation() {
@@ -436,6 +488,7 @@ export function createPartsController(callbacks) {
     cleanPartName,
     getPartName,
     setPartVisibility,
+    meshBelongsToAssembly,
     applyPartState,
     refreshPartStates,
     clearInteractionState,
@@ -443,6 +496,7 @@ export function createPartsController(callbacks) {
     hidePart,
     showAllParts,
     selectMesh,
+    selectMeshWithinAssemblyIsolation,
     selectAssembly,
     clearIsolation,
     splitObjectByMaterialGroups,
