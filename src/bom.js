@@ -112,6 +112,70 @@ export function createBomController({ elements, getPartName, onSelectMesh, onFoc
     return rootNode;
   }
 
+  function getRelativeAssemblySegments(mesh, assemblyKey) {
+    const segments = getMeshPathSegments(mesh);
+    if (segments.length === 0) {
+      return [];
+    }
+
+    if (segments[0] === assemblyKey) {
+      return segments.slice(1);
+    }
+
+    return segments;
+  }
+
+  function buildAssemblyTree(meshes, assemblyKey) {
+    const rootNode = createFolderNode();
+
+    for (const mesh of meshes) {
+      const segments = getRelativeAssemblySegments(mesh, assemblyKey);
+      if (segments.length === 0) {
+        const fallbackLabel = getPartName(mesh);
+        const existingLeaf = rootNode.children.get(fallbackLabel);
+        rootNode.meshCount += 1;
+
+        if (existingLeaf?.type === "leaf") {
+          existingLeaf.meshes.push(mesh);
+          existingLeaf.meshCount += 1;
+          continue;
+        }
+
+        rootNode.children.set(fallbackLabel, createLeafNode(fallbackLabel, fallbackLabel, mesh));
+        continue;
+      }
+
+      let currentNode = rootNode;
+      currentNode.meshCount += 1;
+
+      for (let index = 0; index < segments.length - 1; index += 1) {
+        const segment = segments[index];
+        const key = `${assemblyKey} ${segments.slice(0, index + 1).join(" ")}`;
+
+        if (!currentNode.children.has(segment)) {
+          currentNode.children.set(segment, createFolderNode(segment, key));
+        }
+
+        currentNode = currentNode.children.get(segment);
+        currentNode.meshCount += 1;
+      }
+
+      const leafLabel = segments.at(-1);
+      const leafKey = `${assemblyKey} ${segments.join(" ")}`;
+      const existingLeaf = currentNode.children.get(leafLabel);
+
+      if (existingLeaf?.type === "leaf") {
+        existingLeaf.meshes.push(mesh);
+        existingLeaf.meshCount += 1;
+        continue;
+      }
+
+      currentNode.children.set(leafLabel, createLeafNode(leafLabel, leafKey, mesh));
+    }
+
+    return rootNode;
+  }
+
   function treeContainsMatch(node, query) {
     if (!query) {
       return true;
@@ -271,6 +335,98 @@ export function createBomController({ elements, getPartName, onSelectMesh, onFoc
     return item;
   }
 
+  function createAssemblyItem(group, query) {
+    const item = document.createElement("li");
+    item.className = "bom-tree-item bom-tree-assembly";
+
+    const assemblyTree = buildAssemblyTree(group.meshes, group.assemblyKey);
+    const hasVisibleChildren = Array.from(assemblyTree.children.values()).some((childNode) =>
+      treeContainsMatch(childNode, query),
+    );
+
+    const shouldOpen = query
+      ? true
+      : viewerState.bomExpandedPaths.has(group.assemblyKey);
+    const isActive = viewerState.isolatedAssemblyKey === group.assemblyKey;
+
+    const row = document.createElement("div");
+    row.className = "bom-assembly-row";
+
+    const toggleButton = document.createElement("button");
+    toggleButton.type = "button";
+    toggleButton.className = "bom-assembly-toggle";
+    toggleButton.classList.toggle("is-open", shouldOpen);
+    toggleButton.disabled = !hasVisibleChildren;
+    toggleButton.setAttribute("aria-label", shouldOpen ? "Collapse assembly" : "Expand assembly");
+    toggleButton.setAttribute("aria-expanded", String(shouldOpen));
+
+    const chevron = document.createElement("span");
+    chevron.className = "bom-folder-chevron";
+    chevron.setAttribute("aria-hidden", "true");
+    chevron.textContent = ">";
+    toggleButton.appendChild(chevron);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "bom-leaf-button bom-assembly-button";
+    button.classList.toggle("is-active", isActive);
+
+    const folderIcon = document.createElement("span");
+    folderIcon.className = "bom-folder-icon";
+    folderIcon.setAttribute("aria-hidden", "true");
+    const name = document.createElement("span");
+    name.className = "bom-leaf-name bom-assembly-name";
+    name.textContent = group.assemblyLabel;
+
+    toggleButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (!hasVisibleChildren) {
+        return;
+      }
+      if (viewerState.bomExpandedPaths.has(group.assemblyKey)) {
+        viewerState.bomExpandedPaths.delete(group.assemblyKey);
+      } else {
+        viewerState.bomExpandedPaths.add(group.assemblyKey);
+      }
+      renderBomList();
+    });
+
+    button.appendChild(folderIcon);
+    button.appendChild(name);
+    button.appendChild(createCountBadge(group.meshes.length));
+    button.addEventListener("click", () => {
+      onSelectMesh(group.assemblyKey, { isolate: true, mode: "assembly" });
+      onFocusMesh(group.meshes);
+    });
+
+    row.appendChild(toggleButton);
+    row.appendChild(button);
+    item.appendChild(row);
+
+    if (hasVisibleChildren) {
+      const children = document.createElement("ul");
+      children.className = "bom-tree-children bom-assembly-children";
+      children.hidden = !shouldOpen;
+
+      for (const childNode of assemblyTree.children.values()) {
+        if (!treeContainsMatch(childNode, query)) {
+          continue;
+        }
+
+        const childItem = childNode.type === "folder"
+          ? createFolderItem(childNode, 1, query)
+          : createLeafItem(childNode, 1);
+
+        if (childItem) {
+          children.appendChild(childItem);
+        }
+      }
+
+      item.appendChild(children);
+    }
+    return item;
+  }
+
   function applyBomPanelState() {
     if (!bomPanel || !bomMenuButton) {
       return;
@@ -315,7 +471,10 @@ export function createBomController({ elements, getPartName, onSelectMesh, onFoc
       const filteredAssemblies = assemblyGroups.filter((group) =>
         group.assemblyLabel.toLowerCase().includes(query) ||
         group.assemblyKey.toLowerCase().includes(query) ||
-        group.assemblyPartNumber?.toLowerCase().includes(query),
+        group.assemblyPartNumber?.toLowerCase().includes(query) ||
+        Array.from(buildAssemblyTree(group.meshes, group.assemblyKey).children.values()).some((childNode) =>
+          treeContainsMatch(childNode, query),
+        ),
       );
       bomEmpty.hidden = filteredAssemblies.length > 0;
 
@@ -323,30 +482,7 @@ export function createBomController({ elements, getPartName, onSelectMesh, onFoc
       assemblyList.className = "bom-tree-root";
 
       for (const group of filteredAssemblies) {
-        const item = document.createElement("li");
-        item.className = "bom-tree-item bom-tree-leaf";
-
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "bom-leaf-button bom-assembly-button";
-        button.classList.toggle("is-active", viewerState.isolatedAssemblyKey === group.assemblyKey);
-
-        const icon = document.createElement("span");
-        icon.className = "bom-folder-icon";
-        icon.setAttribute("aria-hidden", "true");
-
-        const name = document.createElement("span");
-        name.className = "bom-leaf-name bom-assembly-name";
-        name.textContent = group.assemblyLabel;
-
-        button.appendChild(icon);
-        button.appendChild(name);
-        button.appendChild(createCountBadge(group.meshes.length));
-        button.addEventListener("click", () => {
-          onSelectMesh(group.assemblyKey, { isolate: true, mode: "assembly" });
-          onFocusMesh(group.meshes);
-        });
-        item.appendChild(button);
+        const item = createAssemblyItem(group, query);
         assemblyList.appendChild(item);
       }
 

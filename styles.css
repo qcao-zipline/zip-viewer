@@ -632,6 +632,57 @@ button {
     0 12px 24px rgba(100, 58, 237, 0.14);
 }
 
+.bom-assembly-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.bom-assembly-toggle {
+  flex: 0 0 36px;
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bom-chip-bg);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.bom-assembly-toggle:hover {
+  border-color: rgba(100, 58, 237, 0.22);
+  background: rgba(100, 58, 237, 0.08);
+  color: var(--text);
+}
+
+.bom-assembly-toggle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.bom-assembly-toggle:disabled:hover {
+  border-color: var(--line);
+  background: var(--bom-chip-bg);
+  color: var(--muted);
+}
+
+.bom-assembly-folder[open] > .bom-folder-summary .bom-folder-chevron,
+.bom-assembly-toggle.is-open .bom-folder-chevron {
+  transform: rotate(90deg);
+}
+
+.bom-assembly-children[hidden] {
+  display: none;
+}
+
 .bom-assembly-name {
   min-width: 0;
   flex: 1;
