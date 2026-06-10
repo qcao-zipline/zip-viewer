@@ -10,16 +10,46 @@ import {
 
 const mtlLoader = new MTLLoader();
 const objLoader = new OBJLoader();
-const ASSEMBLY_PART_NUMBER_LIST_PATH = "./assets/Part_Numbers_List.csv";
-let cachedAssemblyPartNumbers = null;
 
-function shouldUseDroidAssemblyGrouping(assetPath = "") {
-  if (!assetPath) {
-    return false;
+function normalizeParsedObjMaterials(materialCreator, logViewerEvent, candidatePath) {
+  if (!materialCreator) {
+    return;
   }
 
-  const assetFileName = assetPath.split("/").pop() || "";
-  return /^droid_export_attempt_\d+\.obj$/i.test(assetFileName);
+  const normalizedMaterials = new Set();
+  let normalizedCount = 0;
+
+  for (const material of Object.values(materialCreator.materials || {})) {
+    if (!material || normalizedMaterials.has(material)) {
+      continue;
+    }
+
+    normalizedMaterials.add(material);
+
+    const wasTransparent = material.transparent === true;
+    const hadPartialOpacity = typeof material.opacity === "number" && material.opacity < 1;
+    const hadAlphaMap = Boolean(material.alphaMap);
+
+    if (!wasTransparent && !hadPartialOpacity && !hadAlphaMap) {
+      continue;
+    }
+
+    material.transparent = false;
+    material.opacity = 1;
+    material.alphaMap = null;
+    material.alphaTest = 0;
+    material.depthWrite = true;
+    material.depthTest = true;
+    material.premultipliedAlpha = false;
+    material.blending = THREE.NormalBlending;
+    material.needsUpdate = true;
+    normalizedCount += 1;
+  }
+
+  logViewerEvent("OBJ material normalization finished", {
+    candidatePath,
+    normalizedCount,
+  });
 }
 
 function normalizeAssemblySegment(segment = "") {
@@ -63,54 +93,21 @@ function splitObjPartPath(partPath = "") {
     .filter((segment) => segment && !/^droid_export_attempt_\d+$/i.test(segment));
 }
 
-function getSegmentLeadingPartNumber(segment = "") {
-  const normalizedSegment = normalizeAssemblySegment(segment);
-  const match = normalizedSegment.match(/^(\d+)_/);
-  return match ? match[1] : "";
-}
-
-async function loadAssemblyPartNumbers(logViewerEvent) {
-  if (cachedAssemblyPartNumbers) {
-    return cachedAssemblyPartNumbers;
+function getAssemblyMatchForSegments(segments, assemblyOrderByKey) {
+  const topLevelSegment = normalizeAssemblySegment(segments[0] || "");
+  if (!topLevelSegment) {
+    return null;
   }
 
-  try {
-    const csvText = await fetchAssetText(ASSEMBLY_PART_NUMBER_LIST_PATH);
-    cachedAssemblyPartNumbers = csvText
-      .split(/\r?\n/)
-      .map((value) => value.trim())
-      .filter(Boolean);
-  } catch (error) {
-    logViewerEvent("Assembly part number load failed", {
-      path: ASSEMBLY_PART_NUMBER_LIST_PATH,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    cachedAssemblyPartNumbers = [];
+  if (!assemblyOrderByKey.has(topLevelSegment)) {
+    assemblyOrderByKey.set(topLevelSegment, assemblyOrderByKey.size);
   }
 
-  return cachedAssemblyPartNumbers;
-}
-
-function getAssemblyMatchForSegments(segments, assemblyPartNumbers) {
-  const assemblyOrderByPartNumber = new Map(
-    assemblyPartNumbers.map((partNumber, index) => [partNumber, index]),
-  );
-
-  for (const segment of segments) {
-    const normalizedSegment = normalizeAssemblySegment(segment);
-    const leadingPartNumber = getSegmentLeadingPartNumber(normalizedSegment);
-
-    if (assemblyOrderByPartNumber.has(leadingPartNumber)) {
-      return {
-        assemblyKey: normalizedSegment,
-        assemblyLabel: normalizedSegment,
-        assemblyPartNumber: leadingPartNumber,
-        assemblyOrder: assemblyOrderByPartNumber.get(leadingPartNumber),
-      };
-    }
-  }
-
-  return null;
+  return {
+    assemblyKey: topLevelSegment,
+    assemblyLabel: topLevelSegment,
+    assemblyOrder: assemblyOrderByKey.get(topLevelSegment),
+  };
 }
 
 async function loadObjMaterials(modelPath, objText, logViewerEvent) {
@@ -133,6 +130,7 @@ async function loadObjMaterials(modelPath, objText, logViewerEvent) {
       const mtlText = await fetchAssetText(candidatePath);
       const materials = mtlLoader.parse(mtlText, baseUrl);
       materials.preload();
+      normalizeParsedObjMaterials(materials, logViewerEvent, candidatePath);
       logViewerEvent("OBJ material fetch succeeded", { candidatePath });
       return materials;
     } catch (error) {
@@ -170,17 +168,12 @@ export async function loadObjFile(file, helpers) {
 
   const objText = await file.text();
   const objPartPaths = extractObjPartPaths(objText);
-  const useAssemblyGrouping = shouldUseDroidAssemblyGrouping(assetPath);
-  const assemblyPartNumbers = useAssemblyGrouping
-    ? await loadAssemblyPartNumbers(logViewerEvent)
-    : [];
+  const assemblyOrderByKey = new Map();
   logViewerEvent("OBJ text ready", {
     fileName: file.name,
     characters: objText.length,
     mtllib: extractObjMaterialLibraryName(objText) || null,
     partPathCount: objPartPaths.length,
-    assemblyPartNumberCount: assemblyPartNumbers.length,
-    useAssemblyGrouping,
   });
 
   let materials = null;
@@ -199,6 +192,12 @@ export async function loadObjFile(file, helpers) {
     fileName: file.name,
   });
 
+  const splitMeshCount = splitObjectByMaterialGroups(object);
+  logViewerEvent("OBJ material split finished", {
+    fileName: file.name,
+    splitMeshCount,
+  });
+
   let sourceMeshIndex = 0;
   object.traverse((child) => {
     if (!child.isMesh) {
@@ -210,24 +209,18 @@ export async function loadObjFile(file, helpers) {
       child.name = sourcePartPath;
       child.userData.partName = sourcePartPath;
       child.userData.partPathSegments = splitObjPartPath(sourcePartPath);
-      const assemblyMatch = useAssemblyGrouping
-        ? getAssemblyMatchForSegments(child.userData.partPathSegments, assemblyPartNumbers)
-        : null;
+      const assemblyMatch = getAssemblyMatchForSegments(
+        child.userData.partPathSegments,
+        assemblyOrderByKey,
+      );
       if (assemblyMatch) {
         child.userData.assemblyKey = assemblyMatch.assemblyKey;
         child.userData.assemblyLabel = assemblyMatch.assemblyLabel;
-        child.userData.assemblyPartNumber = assemblyMatch.assemblyPartNumber;
         child.userData.assemblyOrder = assemblyMatch.assemblyOrder;
       }
     }
 
     sourceMeshIndex += 1;
-  });
-
-  const splitMeshCount = splitObjectByMaterialGroups(object);
-  logViewerEvent("OBJ material split finished", {
-    fileName: file.name,
-    splitMeshCount,
   });
 
   clearModel();
