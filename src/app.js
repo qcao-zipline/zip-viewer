@@ -1,10 +1,10 @@
 import { warmAssetBuffer } from "./assets.js";
 import { createBomController } from "./bom.js";
 import { createCameraController } from "./camera.js";
-import { createInteractionsController } from "./interactions.js";
+import { createInteractionsController } from "./interactions.js?v=apple-35";
 import { createLoaderController } from "./loaders/index.js";
 import { disposeMaterial } from "./materials.js";
-import { createPartsController } from "./parts.js";
+import { createPartsController } from "./parts.js?v=apple-35";
 import { applySceneTheme, createSceneRuntime } from "./scene.js";
 import { viewerState } from "./state.js";
 import { createUiController } from "./ui.js";
