@@ -237,6 +237,7 @@ export function createPartsController(callbacks) {
 
   function showAllParts() {
     let restoredCount = 0;
+    const hadIsolation = Boolean(viewerState.isolatedMesh || viewerState.isolatedPartKey || viewerState.isolatedAssemblyKey);
 
     for (const mesh of viewerState.meshes) {
       if (mesh.userData.isHidden) {
@@ -245,11 +246,18 @@ export function createPartsController(callbacks) {
       }
     }
 
+    viewerState.hoveredMesh = null;
+    viewerState.selectedMesh = null;
+    viewerState.isolatedMesh = null;
+    viewerState.isolatedPartKey = null;
+    viewerState.isolatedAssemblyKey = null;
+
     refreshPartStates();
     callbacks.renderBomList();
+    callbacks.hideTooltip();
     callbacks.setStatus(
-      restoredCount > 0
-        ? `Restored ${restoredCount} part${restoredCount === 1 ? "" : "s"}`
+      restoredCount > 0 || hadIsolation
+        ? `Showed all${restoredCount > 0 ? ` and restored ${restoredCount} part${restoredCount === 1 ? "" : "s"}` : ""}`
         : "No hidden parts",
     );
   }

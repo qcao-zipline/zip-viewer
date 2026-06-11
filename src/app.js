@@ -1,10 +1,10 @@
 import { warmAssetBuffer } from "./assets.js";
-import { createBomController } from "./bom.js?v=apple-41";
+import { createBomController } from "./bom.js?v=apple-43";
 import { createCameraController } from "./camera.js";
 import { createInteractionsController } from "./interactions.js?v=apple-35";
-import { createLoaderController } from "./loaders/index.js?v=apple-42";
+import { createLoaderController } from "./loaders/index.js?v=apple-43";
 import { disposeMaterial } from "./materials.js";
-import { createPartsController } from "./parts.js?v=apple-41";
+import { createPartsController } from "./parts.js?v=apple-43";
 import { applySceneTheme, createSceneRuntime } from "./scene.js";
 import { viewerState } from "./state.js";
 import { createUiController } from "./ui.js";
@@ -18,6 +18,7 @@ const modelPicker = document.getElementById("model-picker");
 const modelCardButtons = Array.from(document.querySelectorAll(".model-card"));
 const homeButton = document.getElementById("home-button");
 const reloadModelButton = document.getElementById("reload-model-button");
+const showAllButton = document.getElementById("show-all-button");
 const resetViewButton = document.getElementById("reset-view-button");
 const transparencyButton = document.getElementById("transparency-button");
 const themeButton = document.getElementById("theme-button");
@@ -453,6 +454,10 @@ homeButton?.addEventListener("click", () => {
 
 reloadModelButton?.addEventListener("click", () => {
   loadBundledModel();
+});
+
+showAllButton?.addEventListener("click", () => {
+  partsController.showAllParts();
 });
 
 resetViewButton?.addEventListener("click", () => {
