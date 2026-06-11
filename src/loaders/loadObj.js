@@ -19,6 +19,10 @@ function normalizeAssemblySegment(segment = "") {
   return segment.replace(/^_+/, "").trim();
 }
 
+function isExportRootSegment(segment = "") {
+  return /(?:^|_)export_attemp?t?_\d+$/i.test(segment.trim());
+}
+
 function extractObjPartPaths(objText) {
   const lines = objText.split(/\r?\n/);
   const partPaths = [];
@@ -53,7 +57,44 @@ function splitObjPartPath(partPath = "") {
   return partPath
     .split(/\s+/)
     .map((segment) => segment.trim())
-    .filter((segment) => segment && !/^droid_export_attempt_\d+$/i.test(segment));
+    .filter((segment) => segment && !isExportRootSegment(segment));
+}
+
+function getModelGroupingOffset(segments) {
+  const firstSegment = segments[0] || "";
+
+  if (/AIRCRAFT__ZIP/i.test(firstSegment)) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function getFallbackSplitSegment(mesh) {
+  const fallbackSegment =
+    mesh?.userData?.sourceSplitName?.trim() ||
+    mesh?.userData?.partName?.trim() ||
+    mesh?.name?.trim() ||
+    "";
+
+  if (!fallbackSegment || isExportRootSegment(fallbackSegment)) {
+    return "";
+  }
+
+  return normalizeAssemblySegment(fallbackSegment);
+}
+
+function resolveObjPartPathSegments(sourcePartPath, mesh) {
+  const baseSegments = splitObjPartPath(sourcePartPath);
+  const groupingOffset = getModelGroupingOffset(baseSegments);
+  const trimmedSegments = baseSegments.slice(groupingOffset);
+
+  if (trimmedSegments.length > 0) {
+    return trimmedSegments;
+  }
+
+  const fallbackSplitSegment = getFallbackSplitSegment(mesh);
+  return fallbackSplitSegment ? [fallbackSplitSegment] : [];
 }
 
 function getAssemblyMatchForSegments(segments, assemblyOrderByKey) {
@@ -202,7 +243,7 @@ export async function loadObjFile(file, helpers) {
     if (sourcePartPath) {
       child.name = sourcePartPath;
       child.userData.partName = sourcePartPath;
-      child.userData.partPathSegments = splitObjPartPath(sourcePartPath);
+      child.userData.partPathSegments = resolveObjPartPathSegments(sourcePartPath, child);
       const assemblyMatch = getAssemblyMatchForSegments(
         child.userData.partPathSegments,
         assemblyOrderByKey,

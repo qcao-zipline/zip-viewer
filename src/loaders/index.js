@@ -7,7 +7,7 @@ import {
   getFileExtension,
 } from "../assets.js";
 import { loadGlbFromPath } from "./loadGlb.js";
-import { loadObjFile } from "./loadObj.js?v=apple-42";
+import { loadObjFile } from "./loadObj.js?v=apple-44";
 import { loadStepFile } from "./loadStep.js";
 import { loadStlFile } from "./loadStl.js";
 

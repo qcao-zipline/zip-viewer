@@ -18,7 +18,7 @@ export const viewerState = {
   currentModelName: null,
   currentView: "home",
   pendingBomRenderFrame: 0,
-  theme: "light",
+  theme: "dark",
   bomOpen: false,
   bomExpandedPaths: new Set(),
 };
@@ -47,5 +47,5 @@ export function getPreferredTheme() {
     return savedTheme;
   }
 
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return "dark";
 }

@@ -77,6 +77,33 @@ export function createPartsController(callbacks) {
     mesh.userData.isHidden = !isVisible;
   }
 
+  function applyMaterialVisibilityMode(material, { opacity, useXray }) {
+    const nextTransparent = useXray && opacity < 1;
+    const nextOpacity = opacity;
+    const nextDepthWrite = !nextTransparent;
+    const nextDepthTest = true;
+    const nextForceSinglePass = false;
+
+    if (material.transparent !== nextTransparent) {
+      material.transparent = nextTransparent;
+      material.needsUpdate = true;
+    }
+
+    if (material.alphaHash !== false) {
+      material.alphaHash = false;
+      material.needsUpdate = true;
+    }
+
+    if (material.forceSinglePass !== nextForceSinglePass) {
+      material.forceSinglePass = nextForceSinglePass;
+      material.needsUpdate = true;
+    }
+
+    material.opacity = nextOpacity;
+    material.depthWrite = nextDepthWrite;
+    material.depthTest = nextDepthTest;
+  }
+
   function applyPartState(mesh) {
     if (!mesh) {
       return;
@@ -124,14 +151,16 @@ export function createPartsController(callbacks) {
 
       material.emissive.setHex(0x000000);
       material.emissiveIntensity = 0;
-      material.transparent = viewerState.transparentMode || isDimmed;
-      material.opacity = isDimmed ? 0.12 : baseOpacity;
-      material.depthWrite = !(viewerState.transparentMode || isDimmed);
+      applyMaterialVisibilityMode(material, {
+        opacity: isDimmed ? 0.12 : baseOpacity,
+        useXray: viewerState.transparentMode || isDimmed,
+      });
 
       if (isIsolatedMesh) {
-        material.transparent = viewerState.transparentMode;
-        material.opacity = viewerState.transparentMode ? 0.58 : 1;
-        material.depthWrite = !viewerState.transparentMode;
+        applyMaterialVisibilityMode(material, {
+          opacity: viewerState.transparentMode ? 0.58 : 1,
+          useXray: viewerState.transparentMode,
+        });
         if (joinedPath === DEBUG_PART_PATH) {
           console.info("[ZipView] Debug isolated material state", {
             joinedPath,
@@ -152,9 +181,10 @@ export function createPartsController(callbacks) {
         }
         material.emissive.setHex(0x8b5cf6);
         material.emissiveIntensity = 0.22;
-        material.transparent = viewerState.transparentMode;
-        material.opacity = viewerState.transparentMode ? 0.58 : 1;
-        material.depthWrite = !viewerState.transparentMode;
+        applyMaterialVisibilityMode(material, {
+          opacity: viewerState.transparentMode ? 0.58 : 1,
+          useXray: viewerState.transparentMode,
+        });
         continue;
       }
 
@@ -214,6 +244,9 @@ export function createPartsController(callbacks) {
       if (!material.userData.baseColor && material.color) {
         material.userData.baseColor = material.color.clone();
       }
+
+      material.alphaHash = false;
+      material.forceSinglePass = false;
     }
 
     viewerState.meshes.push(mesh);
@@ -548,6 +581,7 @@ export function createPartsController(callbacks) {
       const splitMesh = new THREE.Mesh(slicedGeometry, splitMaterial);
       splitMesh.name = splitPartName;
       splitMesh.userData.partName = splitPartName;
+      splitMesh.userData.sourceSplitName = splitPartName;
       if (Array.isArray(mesh.userData?.partPathSegments)) {
         splitMesh.userData.partPathSegments = [...mesh.userData.partPathSegments];
       }
