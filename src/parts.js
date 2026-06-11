@@ -8,6 +8,9 @@ import {
 } from "./materials.js";
 
 export function createPartsController(callbacks) {
+  const DEBUG_PART_PATH =
+    "32909_005_A01_1_LID_KIT__DROID__P2 30606_001_C01_1_LID_FOAM__DROID__P2 Split_Body__110_";
+
   function cleanPartName(name) {
     if (!name) {
       return "Unnamed body";
@@ -82,8 +85,28 @@ export function createPartsController(callbacks) {
     const isIsolatedMesh = isIsolatedSelection && meshGroupKey === currentIsolationKey;
     const isDimmed = isIsolatedSelection && !isIsolatedMesh;
     const baseOpacity = viewerState.transparentMode ? 0.34 : 1;
+    const joinedPath = Array.isArray(mesh?.userData?.partPathSegments)
+      ? mesh.userData.partPathSegments.join(" ")
+      : "";
 
     mesh.visible = !mesh.userData.isHidden && (!isIsolatedSelection || isIsolatedMesh);
+
+    if (joinedPath === DEBUG_PART_PATH) {
+      console.info("[ZipView] Debug applyPartState", {
+        joinedPath,
+        selectedMeshName: viewerState.selectedMesh?.name || "",
+        isolatedAssemblyKey,
+        isolatedPartKey,
+        meshIsolationKey,
+        currentIsolationKey,
+        meshGroupKey,
+        isIsolatedSelection,
+        isIsolatedMesh,
+        isDimmed,
+        visible: mesh.visible,
+        transparentMode: viewerState.transparentMode,
+      });
+    }
 
     for (const material of getMaterialList(mesh)) {
       const baseColor = material.userData?.baseColor;
@@ -101,6 +124,18 @@ export function createPartsController(callbacks) {
         material.transparent = viewerState.transparentMode;
         material.opacity = viewerState.transparentMode ? 0.58 : 1;
         material.depthWrite = !viewerState.transparentMode;
+        if (joinedPath === DEBUG_PART_PATH) {
+          console.info("[ZipView] Debug isolated material state", {
+            joinedPath,
+            materialName: material.name || material.userData?.name || "",
+            transparent: material.transparent,
+            opacity: material.opacity,
+            depthWrite: material.depthWrite,
+            depthTest: material.depthTest,
+            renderOrder: mesh.renderOrder ?? 0,
+            side: material.side ?? null,
+          });
+        }
         continue;
       }
 
@@ -162,6 +197,10 @@ export function createPartsController(callbacks) {
 
     if (!mesh.material) {
       mesh.material = createMaterial(getStablePartColor(mesh.userData.partName, meshIndex));
+    } else if (Array.isArray(mesh.material)) {
+      mesh.material = mesh.material.map((material) => material?.clone?.() ?? material);
+    } else if (mesh.material?.clone) {
+      mesh.material = mesh.material.clone();
     }
 
     for (const material of getMaterialList(mesh)) {
@@ -392,6 +431,23 @@ export function createPartsController(callbacks) {
     return `Part Material ${groupIndex + 1}`;
   }
 
+  function isOverlayLikeSplit(material, mesh, splitPartName) {
+    const overlayPattern = /\b(PSA|VHB|STICKER|TAPE|LABEL|ADHESIVE)\b/i;
+    const geometryPattern = /\b(Thicken|Offset_Surface|Mirror_Geometry|Pattern_Geometry)\b/i;
+    const searchText = [
+      splitPartName,
+      mesh?.userData?.partName,
+      ...(Array.isArray(mesh?.userData?.partPathSegments) ? mesh.userData.partPathSegments : []),
+      material?.name,
+      material?.userData?.name,
+      material?.userData?.materialName,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return overlayPattern.test(searchText) || geometryPattern.test(searchText);
+  }
+
   function splitMeshByMaterialGroups(mesh) {
     const geometryGroups = mesh.geometry?.groups || [];
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -422,8 +478,16 @@ export function createPartsController(callbacks) {
       slicedGeometry.computeBoundingBox();
       slicedGeometry.computeBoundingSphere();
 
-      const splitMesh = new THREE.Mesh(slicedGeometry, groupMaterial.clone());
       const splitPartName = getObjSplitPartName(groupMaterial, mesh, groupIndex);
+      const splitMaterial = groupMaterial.clone();
+      if (isOverlayLikeSplit(groupMaterial, mesh, splitPartName)) {
+        splitMaterial.polygonOffset = true;
+        splitMaterial.polygonOffsetFactor = -1;
+        splitMaterial.polygonOffsetUnits = -(groupIndex + 1);
+        splitMaterial.depthWrite = false;
+      }
+
+      const splitMesh = new THREE.Mesh(slicedGeometry, splitMaterial);
       splitMesh.name = splitPartName;
       splitMesh.userData.partName = splitPartName;
       if (Array.isArray(mesh.userData?.partPathSegments)) {
@@ -444,6 +508,9 @@ export function createPartsController(callbacks) {
       splitMesh.castShadow = mesh.castShadow;
       splitMesh.receiveShadow = mesh.receiveShadow;
       splitMesh.frustumCulled = mesh.frustumCulled;
+      if (isOverlayLikeSplit(groupMaterial, mesh, splitPartName)) {
+        splitMesh.renderOrder = 10 + groupIndex;
+      }
       splitMeshes.push(splitMesh);
     });
 

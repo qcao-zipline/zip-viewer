@@ -2,7 +2,7 @@ import { warmAssetBuffer } from "./assets.js";
 import { createBomController } from "./bom.js?v=apple-41";
 import { createCameraController } from "./camera.js";
 import { createInteractionsController } from "./interactions.js?v=apple-35";
-import { createLoaderController } from "./loaders/index.js?v=apple-41";
+import { createLoaderController } from "./loaders/index.js?v=apple-42";
 import { disposeMaterial } from "./materials.js";
 import { createPartsController } from "./parts.js?v=apple-41";
 import { applySceneTheme, createSceneRuntime } from "./scene.js";
@@ -10,6 +10,8 @@ import { viewerState } from "./state.js";
 import { createUiController } from "./ui.js";
 
 const LOAD_LOG_PREFIX = "[ZipView]";
+const DEBUG_PART_PATH =
+  "32909_005_A01_1_LID_KIT__DROID__P2 30606_001_C01_1_LID_FOAM__DROID__P2 Split_Body__110_";
 
 const canvas = document.getElementById("viewer-canvas");
 const modelPicker = document.getElementById("model-picker");
@@ -88,6 +90,7 @@ bomController = createBomController({
   onSelectMesh: (target, options = {}) => {
     if (options.mode === "assembly") {
       partsController.selectAssembly(target);
+      scheduleDebugPartVisibilityProbe("after selectAssembly");
       return;
     }
 
@@ -96,6 +99,9 @@ bomController = createBomController({
   onFocusMesh: (target) => {
     if (Array.isArray(target)) {
       cameraController.focusMeshes(target);
+      if (target.some((mesh) => getJoinedPathSegments(mesh) === DEBUG_PART_PATH)) {
+        scheduleDebugPartVisibilityProbe("after focusMeshes");
+      }
       return;
     }
 
@@ -134,6 +140,104 @@ function logLoadTimings(modelName, modelPath, timings) {
 
 function logViewerEvent(eventName, details = {}) {
   console.info(`${LOAD_LOG_PREFIX} ${eventName}`, details);
+}
+
+function getJoinedPathSegments(mesh) {
+  if (!Array.isArray(mesh?.userData?.partPathSegments) || mesh.userData.partPathSegments.length === 0) {
+    return "";
+  }
+
+  return mesh.userData.partPathSegments.join(" ");
+}
+
+function summarizeMeshMaterial(mesh) {
+  const materials = Array.isArray(mesh?.material) ? mesh.material : [mesh?.material];
+  return materials.filter(Boolean).map((material) => ({
+    name: material.name || material.userData?.name || "",
+    transparent: material.transparent ?? null,
+    opacity: material.opacity ?? null,
+    depthWrite: material.depthWrite ?? null,
+    depthTest: material.depthTest ?? null,
+    renderOrder: mesh.renderOrder ?? 0,
+    side: material.side ?? null,
+  }));
+}
+
+function scheduleDebugPartVisibilityProbe(reason = "") {
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      const debugMeshes = viewerState.meshes.filter(
+        (mesh) => getJoinedPathSegments(mesh) === DEBUG_PART_PATH,
+      );
+
+      if (debugMeshes.length === 0) {
+        logViewerEvent("Debug part visibility probe", {
+          reason,
+          debugTargetPath: DEBUG_PART_PATH,
+          debugMeshCount: 0,
+        });
+        return;
+      }
+
+      const debugMesh = debugMeshes[0];
+      const THREE = sceneRuntime.THREE;
+      const debugBounds = new THREE.Box3().setFromObject(debugMesh);
+      const expandedBounds = debugBounds.clone().expandByScalar(0.5);
+      const assemblyKey = debugMesh.userData?.assemblyKey || "";
+      const overlappingMeshes = viewerState.meshes
+        .filter((mesh) => {
+          if (mesh === debugMesh || !mesh.visible) {
+            return false;
+          }
+          if (assemblyKey && mesh.userData?.assemblyKey !== assemblyKey) {
+            return false;
+          }
+
+          const otherBounds = new THREE.Box3().setFromObject(mesh);
+          return !otherBounds.isEmpty() && expandedBounds.intersectsBox(otherBounds);
+        })
+        .map((mesh) => {
+          const otherBounds = new THREE.Box3().setFromObject(mesh);
+          return {
+            partName: partsController.getPartName(mesh),
+            joinedPath: getJoinedPathSegments(mesh),
+            assemblyKey: mesh.userData?.assemblyKey || "",
+            visible: mesh.visible,
+            bounds: {
+              min: otherBounds.min.toArray(),
+              max: otherBounds.max.toArray(),
+            },
+            materials: summarizeMeshMaterial(mesh),
+          };
+        });
+
+      logViewerEvent("Debug part visibility probe", {
+        reason,
+        debugTargetPath: DEBUG_PART_PATH,
+        isolatedAssemblyKey: viewerState.isolatedAssemblyKey,
+        selectedPartName: partsController.getPartName(viewerState.selectedMesh),
+        camera: {
+          position: sceneRuntime.camera.position.toArray(),
+          target: sceneRuntime.controls.target.toArray(),
+          near: sceneRuntime.camera.near,
+          far: sceneRuntime.camera.far,
+        },
+        debugMesh: {
+          partName: partsController.getPartName(debugMesh),
+          joinedPath: getJoinedPathSegments(debugMesh),
+          assemblyKey,
+          visible: debugMesh.visible,
+          renderOrder: debugMesh.renderOrder ?? 0,
+          bounds: {
+            min: debugBounds.min.toArray(),
+            max: debugBounds.max.toArray(),
+          },
+          materials: summarizeMeshMaterial(debugMesh),
+        },
+        overlappingVisibleMeshes: overlappingMeshes,
+      });
+    });
+  });
 }
 
 function setDocumentTitle(label = "") {

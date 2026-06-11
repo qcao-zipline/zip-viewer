@@ -10,47 +10,10 @@ import {
 
 const mtlLoader = new MTLLoader();
 const objLoader = new OBJLoader();
+mtlLoader.setMaterialOptions({ invertTrProperty: true });
 
-function normalizeParsedObjMaterials(materialCreator, logViewerEvent, candidatePath) {
-  if (!materialCreator) {
-    return;
-  }
-
-  const normalizedMaterials = new Set();
-  let normalizedCount = 0;
-
-  for (const material of Object.values(materialCreator.materials || {})) {
-    if (!material || normalizedMaterials.has(material)) {
-      continue;
-    }
-
-    normalizedMaterials.add(material);
-
-    const wasTransparent = material.transparent === true;
-    const hadPartialOpacity = typeof material.opacity === "number" && material.opacity < 1;
-    const hadAlphaMap = Boolean(material.alphaMap);
-
-    if (!wasTransparent && !hadPartialOpacity && !hadAlphaMap) {
-      continue;
-    }
-
-    material.transparent = false;
-    material.opacity = 1;
-    material.alphaMap = null;
-    material.alphaTest = 0;
-    material.depthWrite = true;
-    material.depthTest = true;
-    material.premultipliedAlpha = false;
-    material.blending = THREE.NormalBlending;
-    material.needsUpdate = true;
-    normalizedCount += 1;
-  }
-
-  logViewerEvent("OBJ material normalization finished", {
-    candidatePath,
-    normalizedCount,
-  });
-}
+const DEBUG_PART_PATH =
+  "32909_005_A01_1_LID_KIT__DROID__P2 30606_001_C01_1_LID_FOAM__DROID__P2 Split_Body__110_";
 
 function normalizeAssemblySegment(segment = "") {
   return segment.replace(/^_+/, "").trim();
@@ -110,6 +73,30 @@ function getAssemblyMatchForSegments(segments, assemblyOrderByKey) {
   };
 }
 
+function getJoinedPathSegments(mesh) {
+  if (!Array.isArray(mesh?.userData?.partPathSegments) || mesh.userData.partPathSegments.length === 0) {
+    return "";
+  }
+
+  return mesh.userData.partPathSegments.join(" ");
+}
+
+function collectDebugMeshRecord(mesh, meshIndex) {
+  return {
+    meshIndex,
+    meshName: mesh?.name || "",
+    partName: mesh?.userData?.partName || "",
+    joinedPath: getJoinedPathSegments(mesh),
+    assemblyKey: mesh?.userData?.assemblyKey || "",
+    assemblyLabel: mesh?.userData?.assemblyLabel || "",
+    materialNames: (Array.isArray(mesh?.material) ? mesh.material : [mesh?.material])
+      .filter(Boolean)
+      .map((material) => material.name || material.userData?.name || ""),
+    geometryGroupCount: mesh?.geometry?.groups?.length || 0,
+    visible: mesh?.visible ?? null,
+  };
+}
+
 async function loadObjMaterials(modelPath, objText, logViewerEvent) {
   const baseUrl = getAssetBaseUrl(modelPath);
   const mtllibName = extractObjMaterialLibraryName(objText);
@@ -130,7 +117,6 @@ async function loadObjMaterials(modelPath, objText, logViewerEvent) {
       const mtlText = await fetchAssetText(candidatePath);
       const materials = mtlLoader.parse(mtlText, baseUrl);
       materials.preload();
-      normalizeParsedObjMaterials(materials, logViewerEvent, candidatePath);
       logViewerEvent("OBJ material fetch succeeded", { candidatePath });
       return materials;
     } catch (error) {
@@ -169,11 +155,18 @@ export async function loadObjFile(file, helpers) {
   const objText = await file.text();
   const objPartPaths = extractObjPartPaths(objText);
   const assemblyOrderByKey = new Map();
+  const debugSourceMatches = objPartPaths.reduce((matches, partPath, index) => {
+    if (partPath === DEBUG_PART_PATH) {
+      matches.push(index);
+    }
+    return matches;
+  }, []);
   logViewerEvent("OBJ text ready", {
     fileName: file.name,
     characters: objText.length,
     mtllib: extractObjMaterialLibraryName(objText) || null,
     partPathCount: objPartPaths.length,
+    debugTargetSourceMatchCount: debugSourceMatches.length,
   });
 
   let materials = null;
@@ -199,6 +192,7 @@ export async function loadObjFile(file, helpers) {
   });
 
   let sourceMeshIndex = 0;
+  const debugAssignedMeshes = [];
   object.traverse((child) => {
     if (!child.isMesh) {
       return;
@@ -220,6 +214,19 @@ export async function loadObjFile(file, helpers) {
       }
     }
 
+    if (
+      sourcePartPath === DEBUG_PART_PATH ||
+      getJoinedPathSegments(child) === DEBUG_PART_PATH
+    ) {
+      debugAssignedMeshes.push(
+        {
+          sourceMeshIndex,
+          sourcePartPath,
+          ...collectDebugMeshRecord(child, sourceMeshIndex),
+        },
+      );
+    }
+
     sourceMeshIndex += 1;
   });
 
@@ -227,18 +234,33 @@ export async function loadObjFile(file, helpers) {
   await waitForNextPaint();
 
   let meshIndex = 0;
+  const debugRegisteredMeshes = [];
   object.traverse((child) => {
     if (!child.isMesh) {
       return;
     }
 
     registerMesh(child, meshIndex, file.name || "Part");
+    if (getJoinedPathSegments(child) === DEBUG_PART_PATH) {
+      debugRegisteredMeshes.push(collectDebugMeshRecord(child, meshIndex));
+    }
     meshIndex += 1;
   });
 
   logViewerEvent("OBJ mesh discovery finished", {
     fileName: file.name,
     meshCount: meshIndex,
+  });
+
+  logViewerEvent("OBJ debug target mapping", {
+    fileName: file.name,
+    debugTargetPath: DEBUG_PART_PATH,
+    sourceMatchCount: debugSourceMatches.length,
+    sourceMatchIndices: debugSourceMatches.slice(0, 24),
+    assignedMeshCount: debugAssignedMeshes.length,
+    assignedMeshes: debugAssignedMeshes.slice(0, 24),
+    registeredMeshCount: debugRegisteredMeshes.length,
+    registeredMeshes: debugRegisteredMeshes.slice(0, 24),
   });
 
   if (meshIndex === 0) {
