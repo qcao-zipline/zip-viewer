@@ -24,8 +24,8 @@ export function createSceneRuntime(canvas) {
   controls.target.set(0, 0, 0);
   controls.mouseButtons = {
     LEFT: THREE.MOUSE.ROTATE,
-    MIDDLE: THREE.MOUSE.ROTATE,
-    RIGHT: THREE.MOUSE.PAN,
+    MIDDLE: THREE.MOUSE.PAN,
+    RIGHT: null,
   };
 
   const ambientLight = new THREE.AmbientLight(0xffffff, 1.15);

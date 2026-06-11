@@ -13,12 +13,8 @@ export function createInteractionsController({
   uiController,
 }) {
   const { raycaster, pointer, camera, controls, THREE } = sceneRuntime;
-  const rightClickState = {
-    active: false,
-    startX: 0,
-    startY: 0,
-  };
   let contextMenuMesh = null;
+  let suppressPrimaryClickUntil = 0;
 
   function hideTooltip() {
     if (partTooltip) {
@@ -29,6 +25,8 @@ export function createInteractionsController({
   function hideContextMenu() {
     if (partContextMenu) {
       partContextMenu.hidden = true;
+      partContextMenu.style.left = "0px";
+      partContextMenu.style.top = "0px";
     }
     contextMenuMesh = null;
   }
@@ -45,7 +43,8 @@ export function createInteractionsController({
     contextMenuMesh = mesh;
     partContextTitle.textContent = partsController.getPartName(mesh);
     partContextMenu.hidden = false;
-    partContextMenu.style.transform = `translate(${Math.max(12, x)}px, ${Math.max(12, y)}px)`;
+    partContextMenu.style.left = `${Math.max(12, x)}px`;
+    partContextMenu.style.top = `${Math.max(12, y)}px`;
   }
 
   function showTooltip(mesh, clientX, clientY, prefix = "") {
@@ -83,6 +82,36 @@ export function createInteractionsController({
     raycaster.setFromCamera(pointer, camera);
     const hits = raycaster.intersectObjects(viewerState.meshes, false);
     return hits[0]?.object || null;
+  }
+
+  function isSecondaryTrigger(event) {
+    return event.button === 2 || (event.button === 0 && event.ctrlKey);
+  }
+
+  function openPartContextMenu(event) {
+    hideContextMenu();
+    const intersectedMesh = getIntersectedMesh(event);
+    if (!intersectedMesh) {
+      hideTooltip();
+      return false;
+    }
+
+    if (viewerState.isolatedAssemblyKey) {
+      partsController.selectMeshWithinAssemblyIsolation(intersectedMesh);
+    } else if (viewerState.isolatedPartKey) {
+      partsController.selectMeshWithinPartIsolation(intersectedMesh);
+    } else {
+      partsController.selectMesh(intersectedMesh);
+    }
+
+    showTooltip(intersectedMesh, event.clientX, event.clientY, "Selected");
+    showContextMenu(intersectedMesh, event.clientX, event.clientY);
+    suppressPrimaryClickUntil = performance.now() + 250;
+    return true;
+  }
+
+  function suppressNextPrimaryClick() {
+    suppressPrimaryClickUntil = performance.now() + 250;
   }
 
   function bindEvents() {
@@ -123,6 +152,10 @@ export function createInteractionsController({
     });
 
     canvas.addEventListener("click", (event) => {
+      if (performance.now() < suppressPrimaryClickUntil) {
+        return;
+      }
+
       if (event.button !== 0) {
         return;
       }
@@ -132,6 +165,8 @@ export function createInteractionsController({
       const intersectedMesh = getIntersectedMesh(event);
       if (viewerState.isolatedAssemblyKey) {
         partsController.selectMeshWithinAssemblyIsolation(intersectedMesh);
+      } else if (viewerState.isolatedPartKey) {
+        partsController.selectMeshWithinPartIsolation(intersectedMesh);
       } else {
         partsController.selectMesh(intersectedMesh);
       }
@@ -145,46 +180,17 @@ export function createInteractionsController({
     });
 
     canvas.addEventListener("pointerdown", (event) => {
-      if (event.button !== 2) {
+      if (!isSecondaryTrigger(event)) {
         return;
       }
 
-      rightClickState.active = true;
-      rightClickState.startX = event.clientX;
-      rightClickState.startY = event.clientY;
-    });
-
-    canvas.addEventListener("pointerup", (event) => {
-      if (event.button !== 2 || !rightClickState.active) {
-        return;
-      }
-
-      const movement = Math.hypot(
-        event.clientX - rightClickState.startX,
-        event.clientY - rightClickState.startY,
-      );
-      rightClickState.active = false;
-
-      if (movement > 6) {
-        return;
-      }
-
-      hideContextMenu();
-      const intersectedMesh = getIntersectedMesh(event);
-      if (intersectedMesh) {
-        if (viewerState.isolatedAssemblyKey) {
-          partsController.selectMeshWithinAssemblyIsolation(intersectedMesh);
-        } else {
-          partsController.selectMesh(intersectedMesh);
-        }
-        showTooltip(intersectedMesh, event.clientX, event.clientY, "Selected");
-        showContextMenu(intersectedMesh, event.clientX, event.clientY);
-        return;
-      }
+      event.preventDefault();
+      openPartContextMenu(event);
     });
 
     canvas.addEventListener("contextmenu", (event) => {
       event.preventDefault();
+      openPartContextMenu(event);
     });
 
     canvas.addEventListener("pointercancel", () => {
@@ -192,21 +198,27 @@ export function createInteractionsController({
       hideContextMenu();
     });
 
-    contextIsolateButton?.addEventListener("click", () => {
+    contextIsolateButton?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       if (!contextMenuMesh) {
         return;
       }
 
+      suppressNextPrimaryClick();
       partsController.selectMesh(contextMenuMesh, { isolate: true });
       cameraController.focusMesh(contextMenuMesh);
       hideContextMenu();
     });
 
-    contextHideButton?.addEventListener("click", () => {
+    contextHideButton?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       if (!contextMenuMesh) {
         return;
       }
 
+      suppressNextPrimaryClick();
       partsController.hidePart(contextMenuMesh);
       hideContextMenu();
     });
@@ -229,7 +241,7 @@ export function createInteractionsController({
         controls.mouseButtons = {
           LEFT: THREE.MOUSE.PAN,
           MIDDLE: THREE.MOUSE.PAN,
-          RIGHT: THREE.MOUSE.PAN,
+          RIGHT: null,
         };
       }
     });
@@ -238,8 +250,8 @@ export function createInteractionsController({
       if (event.key === "Shift") {
         controls.mouseButtons = {
           LEFT: THREE.MOUSE.ROTATE,
-          MIDDLE: THREE.MOUSE.ROTATE,
-          RIGHT: THREE.MOUSE.PAN,
+          MIDDLE: THREE.MOUSE.PAN,
+          RIGHT: null,
         };
       }
     });

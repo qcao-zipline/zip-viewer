@@ -960,12 +960,15 @@ button {
 .part-context-menu {
   position: absolute;
   z-index: 6;
-  min-width: 220px;
+  top: 0;
+  left: 0;
+  width: 156px;
+  max-width: 156px;
   display: grid;
-  gap: 8px;
-  padding: 12px;
+  gap: 4px;
+  padding: 8px;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--tooltip-bg);
   color: var(--text);
   backdrop-filter: blur(18px) saturate(1.15);
@@ -979,22 +982,25 @@ button {
 }
 
 .part-context-title {
-  padding: 2px 2px 6px;
+  padding: 0 0 3px;
   border-bottom: 1px solid var(--line);
-  font-size: 0.82rem;
+  font-size: 0.66rem;
   font-weight: 650;
-  line-height: 1.3;
+  line-height: 1.15;
   color: var(--muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .part-context-action {
   width: 100%;
-  padding: 10px 12px;
+  padding: 6px 8px;
   border: 1px solid rgba(100, 58, 237, 0.16);
-  border-radius: 12px;
+  border-radius: 9px;
   background: linear-gradient(180deg, rgba(100, 58, 237, 0.1), rgba(81, 37, 216, 0.05));
   color: var(--text);
   text-align: left;
+  font-size: 0.75rem;
   cursor: pointer;
   box-shadow: var(--inner-glow);
   transition:

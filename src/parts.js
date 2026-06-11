@@ -60,6 +60,14 @@ export function createPartsController(callbacks) {
     return getAssemblyKey(mesh) === assemblyKey;
   }
 
+  function meshBelongsToPart(mesh, partKey) {
+    if (!mesh || !partKey) {
+      return false;
+    }
+
+    return getPartIsolationKey(mesh) === partKey;
+  }
+
   function setPartVisibility(mesh, isVisible) {
     if (!mesh) {
       return;
@@ -136,7 +144,6 @@ export function createPartsController(callbacks) {
             side: material.side ?? null,
           });
         }
-        continue;
       }
 
       if (isSelected) {
@@ -264,6 +271,7 @@ export function createPartsController(callbacks) {
 
   function selectMesh(mesh, { isolate = false } = {}) {
     const activeAssemblyKey = viewerState.isolatedAssemblyKey;
+    const activePartKey = viewerState.isolatedPartKey;
 
     if (
       activeAssemblyKey &&
@@ -271,6 +279,15 @@ export function createPartsController(callbacks) {
       (mesh === null || meshBelongsToAssembly(mesh, activeAssemblyKey))
     ) {
       selectMeshWithinAssemblyIsolation(mesh);
+      return;
+    }
+
+    if (
+      activePartKey &&
+      !isolate &&
+      (mesh === null || meshBelongsToPart(mesh, activePartKey))
+    ) {
+      selectMeshWithinPartIsolation(mesh);
       return;
     }
 
@@ -287,6 +304,39 @@ export function createPartsController(callbacks) {
     }
 
     callbacks.setStatus(callbacks.getIdleStatus());
+  }
+
+  function selectMeshWithinPartIsolation(mesh) {
+    const activePartKey = viewerState.isolatedPartKey;
+
+    if (!activePartKey) {
+      selectMesh(mesh);
+      return;
+    }
+
+    if (!mesh) {
+      viewerState.selectedMesh = null;
+      viewerState.isolatedMesh = null;
+      viewerState.isolatedAssemblyKey = null;
+      refreshPartStates();
+      callbacks.renderBomList();
+      callbacks.hideTooltip();
+      callbacks.setStatus(callbacks.getIdleStatus());
+      return;
+    }
+
+    if (!meshBelongsToPart(mesh, activePartKey)) {
+      refreshPartStates();
+      callbacks.renderBomList();
+      return;
+    }
+
+    viewerState.selectedMesh = mesh;
+    viewerState.isolatedMesh = mesh;
+    viewerState.isolatedAssemblyKey = null;
+    refreshPartStates();
+    callbacks.renderBomList();
+    callbacks.setStatus(`Selected: ${getPartName(mesh)}`);
   }
 
   function selectMeshWithinAssemblyIsolation(mesh) {
@@ -571,6 +621,7 @@ export function createPartsController(callbacks) {
     hidePart,
     showAllParts,
     selectMesh,
+    selectMeshWithinPartIsolation,
     selectMeshWithinAssemblyIsolation,
     selectAssembly,
     clearIsolation,
